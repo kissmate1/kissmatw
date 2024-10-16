@@ -27,7 +27,8 @@ systemctl enable mariadb
 systemctl start mariadb
 
 # UFW konfiguráció
-ufw allow OpenSSH
-ufw allow 'Apache Full'
+ufw allow 22
+ufw allow 80
+ufw allow 1880
+ufw allow 1883
 ufw enable
-
