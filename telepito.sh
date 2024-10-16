@@ -8,7 +8,7 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl
 
 # Node-RED telepítése (hivatalos script alapján)
 curl -sL https://deb.nodesource.com/setup_14.x | bash -
