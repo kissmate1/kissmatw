@@ -36,7 +36,6 @@ ufw enable
 node-red-start &
 
 # Mariadb felhasználó
-mariadb -u root -p
-CREATE USER 'username'@'localhost' IDENTIFIED BY 'password';
-FLUSH PRIVILEGES;
+mariadb |cat <<"CREATE USER 'admin'@'localhost' IDENTIFIED BY 'admin123';
+FLUSH PRIVILEGES;"
 EXIT;
