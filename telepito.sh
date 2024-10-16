@@ -4,6 +4,7 @@
 chmod +x "$0"
 
 # Frissítsük a csomaglistát
+PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
