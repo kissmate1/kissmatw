@@ -32,10 +32,16 @@ ufw allow 1880
 ufw allow 1883
 ufw enable
 
-# Node-red inditás
+# Node-RED indítás
 node-red-start &
 
-# Mariadb felhasználó
-mariadb |cat <<"CREATE USER 'admin'@'localhost' IDENTIFIED BY 'admin123';
-FLUSH PRIVILEGES;"
-EXIT;
+# MariaDB felhasználó létrehozása
+mysql -u root <<MYSQL_SCRIPT
+CREATE USER 'admin'@'localhost' IDENTIFIED BY 'admin123';
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+MYSQL_SCRIPT
+
+# Indítsa újra a MariaDB-t a változtatások érvényesítéséhez
+systemctl restart mariadb
+
