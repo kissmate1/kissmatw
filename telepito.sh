@@ -33,3 +33,6 @@ ufw allow 80
 ufw allow 1880
 ufw allow 1883
 ufw enable
+
+# Node-red inditás
+node-red start &
