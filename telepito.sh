@@ -11,7 +11,7 @@ apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl
 
 # Node-RED telepítése (hivatalos script alapján)
-curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered
+bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered)
 
 # SSH szolgáltatás elindítása
 systemctl enable ssh
@@ -33,7 +33,7 @@ ufw allow 1883
 ufw enable
 
 # Node-red inditás
-node-red start &
+node-red-start &
 
 # Mariadb felhasználó
 mariadb -u root -p
