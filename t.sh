@@ -52,4 +52,15 @@ MYSQL_SCRIPT
 # Indítsa újra a MariaDB-t a változtatások érvényesítéséhez
 systemctl restart mariadb
 
+# Ellenőrizzük a telepített szolgáltatások állapotát
+echo "Telepített szolgáltatások állapota:"
+for service in ssh apache2 mariadb mosquitto; do
+    echo -n "$service: "
+    systemctl is-active --quiet $service && echo "fut" || echo "nem fut"
+done
+
+# Ellenőrizzük a Node-RED állapotát
+echo -n "Node-RED: "
+pgrep -f node-red > /dev/null && echo "fut" || echo "nem fut"
+
 echo "A telepítés sikeresen befejeződött!"
