@@ -1,6 +1,6 @@
 #!/bin/bash
-set -e  # Exit immediately if a command exits with a non-zero status
-set -x  # Enable debugging to show commands being executed
+set -e  # Azonnali kilépés, ha egy parancs nem nullával tér vissza
+set -x  # Hibakeresés engedélyezése, a végrehajtott parancsok megjelenítéséhez
 
 # A script saját magát futtathatóvá teszi
 chmod +x "$0"
