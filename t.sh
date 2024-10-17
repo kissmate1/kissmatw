@@ -54,8 +54,8 @@ WantedBy=multi-user.target
 EOF
 
 # Szolgáltatás engedélyezése és indítása
-systemctl enable node-red
-systemctl start node-red
+node-red-start &
+
 
 # MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
 read -sp "Kérem, adja meg az admin jelszót: " db_password
