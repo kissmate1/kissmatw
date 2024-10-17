@@ -37,12 +37,29 @@ ufw allow 1880  # Node-RED engedélyezése
 ufw allow 1883  # MQTT engedélyezése
 ufw enable
 
-# Node-RED indítása
-node-red-start &
+# Node-RED rendszerindító szolgáltatás létrehozása
+cat <<EOF > /etc/systemd/system/node-red.service
+[Unit]
+Description=Node-RED
+After=network.target
 
-# MariaDB felhasználó létrehozása, jelszó kérése
-read -sp "Adja meg a MariaDB admin felhasználó jelszavát: " db_password
-echo
+[Service]
+ExecStart=/usr/bin/env node-red
+Restart=on-failure
+User=$(whoami)
+Group=$(id -gn)
+Environment=NODE_OPTIONS=--max-old-space-size=256
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Szolgáltatás engedélyezése és indítása
+systemctl enable node-red
+systemctl start node-red
+
+# MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
+db_password="admin123"
 mysql -u root <<MYSQL_SCRIPT
 CREATE USER 'admin'@'localhost' IDENTIFIED BY '$db_password';
 GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
@@ -54,13 +71,9 @@ systemctl restart mariadb
 
 # Ellenőrizzük a telepített szolgáltatások állapotát
 echo "Telepített szolgáltatások állapota:"
-for service in ssh apache2 mariadb mosquitto; do
+for service in ssh apache2 mariadb mosquitto node-red; do
     echo -n "$service: "
     systemctl is-active --quiet $service && echo "fut" || echo "nem fut"
 done
-
-# Ellenőrizzük a Node-RED állapotát
-echo -n "Node-RED: "
-pgrep -f node-red > /dev/null && echo "fut" || echo "nem fut"
 
 echo "A telepítés sikeresen befejeződött!"
