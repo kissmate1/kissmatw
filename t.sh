@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e  # Exit immediately if a command exits with a non-zero status
+set -x  # Enable debugging to show commands being executed
 
 # A script saját magát futtathatóvá teszi
 chmod +x "$0"
@@ -11,24 +13,21 @@ apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients
 
 # Node.js telepítése (hivatalos NodeSource tárolóból - legújabb LTS)
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -  # Vagy cseréld 20.x-re a legújabb verzióhoz
-apt-get install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - || { echo "Node.js telepítése sikertelen."; exit 1; }
+apt-get install -y nodejs || { echo "Node.js telepítése sikertelen."; exit 1; }
+
+# Ellenőrizzük a Node.js és npm verziót
+node -v || { echo "Node.js nem található."; exit 1; }
+npm -v || { echo "npm nem található."; exit 1; }
 
 # Node-RED telepítése a legújabb verzióval
-npm install -g --unsafe-perm node-red@latest
+npm install -g --unsafe-perm node-red@latest || { echo "Node-RED telepítése sikertelen."; exit 1; }
 
 # Szolgáltatások engedélyezése és indítása
-systemctl enable ssh
-systemctl start ssh
-
-systemctl enable apache2
-systemctl start apache2
-
-systemctl enable mariadb
-systemctl start mariadb
-
-systemctl enable mosquitto
-systemctl start mosquitto
+for service in ssh apache2 mariadb mosquitto; do
+    systemctl enable $service
+    systemctl start $service
+done
 
 # UFW tűzfal konfiguráció
 ufw allow 22    # SSH engedélyezése
@@ -59,7 +58,8 @@ systemctl enable node-red
 systemctl start node-red
 
 # MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
-db_password="admin123"
+read -sp "Kérem, adja meg az admin jelszót: " db_password
+echo
 mysql -u root <<MYSQL_SCRIPT
 CREATE USER 'admin'@'localhost' IDENTIFIED BY '$db_password';
 GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
