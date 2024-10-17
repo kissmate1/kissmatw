@@ -12,16 +12,6 @@ apt-get update -y
 # Telepítsük a szükséges csomagokat
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients
 
-# Node.js telepítése (hivatalos NodeSource tárolóból - legújabb LTS)
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash - || { echo "Node.js telepítése sikertelen."; exit 1; }
-apt-get install -y nodejs || { echo "Node.js telepítése sikertelen."; exit 1; }
-
-# Ellenőrizzük a Node.js és npm verziót
-node -v || { echo "Node.js nem található."; exit 1; }
-npm -v || { echo "npm nem található."; exit 1; }
-
-# Node-RED telepítése a legújabb verzióval
-npm install -g --unsafe-perm node-red@latest || { echo "Node-RED telepítése sikertelen."; exit 1; }
 
 # Szolgáltatások engedélyezése és indítása
 for service in ssh apache2 mariadb mosquitto; do
@@ -35,26 +25,6 @@ ufw allow 80    # HTTP engedélyezése
 ufw allow 1880  # Node-RED engedélyezése
 ufw allow 1883  # MQTT engedélyezése
 ufw enable
-
-# Node-RED rendszerindító szolgáltatás létrehozása
-cat <<EOF > /etc/systemd/system/node-red.service
-[Unit]
-Description=Node-RED
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/env node-red
-Restart=on-failure
-User=$(whoami)
-Group=$(id -gn)
-Environment=NODE_OPTIONS=--max-old-space-size=256
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Szolgáltatás engedélyezése és indítása
-node-red-start &
 
 
 # MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
