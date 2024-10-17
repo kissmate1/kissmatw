@@ -8,36 +8,43 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients
 
-# Node-RED telepítése (hivatalos script alapján)
-bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered) -y
+# Node.js telepítése (hivatalos NodeSource tárolóból)
+curl -fsSL https://deb.nodesource.com/setup_16.x | bash -
+apt-get install -y nodejs
 
-# SSH szolgáltatás elindítása
+# Node-RED telepítése
+npm install -g --unsafe-perm node-red
+
+# Szolgáltatások engedélyezése és indítása
 systemctl enable ssh
 systemctl start ssh
 
-# Apache szolgáltatás elindítása
 systemctl enable apache2
 systemctl start apache2
 
-# MariaDB szolgáltatás elindítása
 systemctl enable mariadb
 systemctl start mariadb
 
-# UFW konfiguráció
-ufw allow 22
-ufw allow 80
-ufw allow 1880
-ufw allow 1883
+systemctl enable mosquitto
+systemctl start mosquitto
+
+# UFW tűzfal konfiguráció
+ufw allow 22    # SSH engedélyezése
+ufw allow 80    # HTTP engedélyezése
+ufw allow 1880  # Node-RED engedélyezése
+ufw allow 1883  # MQTT engedélyezése
 ufw enable
 
-# Node-RED indítás
+# Node-RED indítása
 node-red-start &
 
-# MariaDB felhasználó létrehozása
+# MariaDB felhasználó létrehozása, jelszó kérése
+read -sp "Adja meg a MariaDB admin felhasználó jelszavát: " db_password
+echo
 mysql -u root <<MYSQL_SCRIPT
-CREATE USER 'admin'@'localhost' IDENTIFIED BY 'admin123';
+CREATE USER 'admin'@'localhost' IDENTIFIED BY '$db_password';
 GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 MYSQL_SCRIPT
@@ -45,3 +52,4 @@ MYSQL_SCRIPT
 # Indítsa újra a MariaDB-t a változtatások érvényesítéséhez
 systemctl restart mariadb
 
+echo "A telepítés sikeresen befejeződött!"
