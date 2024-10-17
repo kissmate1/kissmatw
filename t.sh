@@ -11,7 +11,7 @@ apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients
 
 # Node.js telepítése (hivatalos NodeSource tárolóból - legújabb LTS)
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -  # Vagy cseréld 20.x-re a legújabb verzióhoz
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -  # Vagy cseréld 20.x-re a legújabb verzióhoz
 apt-get install -y nodejs
 
 # Node-RED telepítése a legújabb verzióval
