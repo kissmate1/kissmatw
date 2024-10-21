@@ -10,41 +10,16 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm virtualbox
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm
 
 # Node-RED telepítése
 npm install -g --unsafe-perm node-red@latest
 
-# Szolgáltatások engedélyezése és indítása
-for service in ssh apache2 mariadb mosquitto; do
-    systemctl enable $service
-    systemctl start $service
-done
-
-# UFW tűzfal konfiguráció
-ufw allow 22    # SSH engedélyezése
-ufw allow 80    # HTTP engedélyezése
-ufw allow 1880  # Node-RED engedélyezése
-ufw allow 1883  # MQTT engedélyezése
-ufw enable
-
-# VirtualBox port beállítások
-VBoxManage modifyvm "VM_NAME" --natpf1 "ssh,tcp,,2222,,22"
-VBoxManage modifyvm "VM_NAME" --natpf1 "http,tcp,,8080,,80"
-VBoxManage modifyvm "VM_NAME" --natpf1 "nodered,tcp,,1880,,1880"
-VBoxManage modifyvm "VM_NAME" --natpf1 "mqtt,tcp,,1883,,1883"
-
-# MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
-read -sp "Kérem, adja meg az admin jelszót: " db_password
-echo
-mysql -u root <<MYSQL_SCRIPT
-CREATE USER 'admin'@'localhost' IDENTIFIED BY '$db_password';
-GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-MYSQL_SCRIPT
-
-# Indítsa újra a MariaDB-t a változtatások érvényesítéséhez
-systemctl restart mariadb
+# VirtualBox telepítése Oracle Repositoryből
+echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | tee /etc/apt/sources.list.d/virtualbox.list
+wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | apt-key add -
+apt-get update -y
+apt-get install -y virtualbox-6.1
 
 # Node-RED unit file létrehozása
 cat <<EOF > /etc/systemd/system/nodered.service
