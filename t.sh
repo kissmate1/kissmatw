@@ -42,9 +42,34 @@ MYSQL_SCRIPT
 # Indítsa újra a MariaDB-t a változtatások érvényesítéséhez
 systemctl restart mariadb
 
+# Node-RED unit file létrehozása
+cat <<EOF > /etc/systemd/system/nodered.service
+[Unit]
+Description=Node-RED graphical event wiring tool
+Wants=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=/home/$(whoami)/.node-red
+ExecStart=/usr/bin/env node-red-pi --max-old-space-size=256
+Restart=always
+Environment="NODE_OPTIONS=--max-old-space-size=256"
+# Nice options
+Nice=10
+EnvironmentFile=-/etc/nodered/.env
+# Make available to all devices
+SyslogIdentifier=Node-RED
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # Node-RED indítása
-systemctl enable nodered
-systemctl start nodered
+systemctl daemon-reload
+systemctl enable nodered.service
+systemctl start nodered.service
 
 # Ellenőrizzük a telepített szolgáltatások állapotát
 echo "Telepített szolgáltatások állapota:"
