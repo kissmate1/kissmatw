@@ -28,6 +28,12 @@ ufw allow 1880  # Node-RED engedélyezése
 ufw allow 1883  # MQTT engedélyezése
 ufw enable
 
+# VirtualBox port beállítások
+VBoxManage modifyvm "VM_NAME" --natpf1 "ssh,tcp,,2222,,22"
+VBoxManage modifyvm "VM_NAME" --natpf1 "http,tcp,,8080,,80"
+VBoxManage modifyvm "VM_NAME" --natpf1 "nodered,tcp,,1880,,1880"
+VBoxManage modifyvm "VM_NAME" --natpf1 "mqtt,tcp,,1883,,1883"
+
 # MariaDB admin felhasználó létrehozása, alapértelmezett jelszó
 read -sp "Kérem, adja meg az admin jelszót: " db_password
 echo
