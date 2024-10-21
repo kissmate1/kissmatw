@@ -10,11 +10,9 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm
 
 # Node-RED telepítése
-curl -sL https://deb.nodesource.com/setup_18.x | bash -
-apt-get install -y nodejs
 npm install -g --unsafe-perm node-red@latest
 
 # Szolgáltatások engedélyezése és indítása
