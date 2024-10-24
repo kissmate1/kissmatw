@@ -16,10 +16,10 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache
 npm install -g --unsafe-perm node-red@latest
 
 # VirtualBox telepítése Oracle Repositoryből
-echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | tee /etc/apt/sources.list.d/virtualbox.list
-wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | apt-key add -
-apt-get update -y
-apt-get install -y virtualbox-6.1
+#echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | tee /etc/apt/sources.list.d/virtualbox.list
+#wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | apt-key add -
+#apt-get update -y
+#apt-get install -y virtualbox-6.1
 
 # Node-RED unit file létrehozása
 cat <<EOF > /etc/systemd/system/nodered.service
