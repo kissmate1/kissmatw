@@ -10,7 +10,7 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server
 
 # Node-RED telepítése
 npm install -g --unsafe-perm node-red@latest
@@ -52,9 +52,13 @@ systemctl start nodered.service
 
 # Ellenőrizzük a telepített szolgáltatások állapotát
 echo "Telepített szolgáltatások állapota:"
-for service in ssh apache2 mariadb mosquitto nodered; do
+for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server; do
     echo -n "$service: "
-    systemctl is-active --quiet $service && echo "fut" || echo "nem fut"
+    if systemctl is-active --quiet $service; then
+        echo "fut"
+    else
+        echo "nem fut"
+    fi
 done
 
 # RAID tömb létrehozása az mdadm használatával
@@ -87,5 +91,22 @@ if [ -b /dev/sdb ] && [ -b /dev/sdc ]; then
 else
     echo "Nincsenek megfelelő lemezek (/dev/sdb, /dev/sdc) a RAID létrehozásához"
 fi
+
+# NFS konfiguráció - megosztott könyvtár létrehozása
+echo "NFS fájlmegosztás beállítása..."
+
+# Készítsünk egy megosztott könyvtárat
+mkdir -p /mnt/nfs_share
+
+# A /etc/exports fájlban hozzáadjuk a megosztásokat
+echo "/mnt/nfs_share *(rw,sync,no_subtree_check)" >> /etc/exports
+
+# Az NFS szolgáltatás újraindítása, hogy a beállítások érvényesüljenek
+exportfs -a
+systemctl restart nfs-kernel-server
+
+# Tűzfal beállítások frissítése
+ufw allow from any to any port 2049 proto tcp
+ufw reload
 
 echo "A telepítés sikeresen befejeződött!"
