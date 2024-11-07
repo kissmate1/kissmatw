@@ -7,7 +7,7 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server samba samba-common-bin
 
 # Node-RED telepítése (without --unsafe-perm flag)
 npm install -g node-red@latest
@@ -54,7 +54,7 @@ sleep 5
 # Ellenőrizzük a telepített szolgáltatások állapotát
 echo "Telepített szolgáltatások állapota:"
 all_services_ok=true
-for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server; do
+for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server samba; do
     echo -n "$service: "
     if systemctl is-active --quiet $service; then
         echo "fut"
@@ -78,10 +78,27 @@ echo "/mnt/nfs_share 192.168.1.0/24(rw,sync,no_subtree_check)" >> /etc/exports
 exportfs -a
 systemctl restart nfs-kernel-server
 
-# Tűzfal beállítások frissítése, csak a biztonságos IP-címek számára
-# Cseréld le 192.168.1.0/24-t a saját alhálózatodra vagy IP-címedre
-ufw allow from 192.168.1.0/24 to any port 2049 proto tcp
-ufw reload
+# Samba megosztás konfigurálása
+echo "Samba fájlmegosztás beállítása..."
+
+# Samba konfigurálása
+mkdir -p /srv/samba/share
+
+# Samba konfiguráció hozzáadása
+cat <<EOF >> /etc/samba/smb.conf
+
+[share]
+   path = /srv/samba/share
+   browseable = yes
+   read only = no
+   guest ok = yes
+   force user = nobody
+   force group = nogroup
+EOF
+
+# A Samba szolgáltatás újraindítása
+systemctl restart smbd
+systemctl enable smbd
 
 # Ellenőrző üzenet a telepítés után
 if $all_services_ok; then
