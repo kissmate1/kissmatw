@@ -10,7 +10,7 @@ PATH=$PATH:"/sbin"
 apt-get update -y
 
 # Telepítsük a szükséges csomagokat
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm
 
 # Node-RED telepítése
 npm install -g --unsafe-perm node-red@latest
@@ -56,5 +56,36 @@ for service in ssh apache2 mariadb mosquitto nodered; do
     echo -n "$service: "
     systemctl is-active --quiet $service && echo "fut" || echo "nem fut"
 done
+
+# RAID tömb létrehozása az mdadm használatával
+# Ez csak egy példa, és csak akkor érdemes futtatni, ha tényleg két eszköz áll rendelkezésre!
+
+# Ellenőrizzük, hogy van-e két szabad lemez (pl. /dev/sdb és /dev/sdc)
+echo "Ellenőrizd, hogy két szabad lemez van: /dev/sdb és /dev/sdc"
+lsblk
+
+# Ha a lemezek jelen vannak, RAID1 létrehozása
+if [ -b /dev/sdb ] && [ -b /dev/sdc ]; then
+    echo "RAID1 tömb létrehozása /dev/sdb és /dev/sdc lemezekkel"
+
+    # A lemezek előkészítése
+    wipefs --all /dev/sdb /dev/sdc  # Az esetleges régi fájlrendszer törlése
+    mdadm --create /dev/md0 --level=1 --raid-devices=2 /dev/sdb /dev/sdc
+
+    # RAID tömb állapotának ellenőrzése
+    cat /proc/mdstat
+
+    # A RAID tömb fájlrendszerének létrehozása (pl. ext4)
+    mkfs.ext4 /dev/md0
+
+    # Mountolás
+    mkdir -p /mnt/raid
+    mount /dev/md0 /mnt/raid
+
+    # Az automatikus csatlakoztatás konfigurálása (fstab módosítása)
+    echo '/dev/md0 /mnt/raid ext4 defaults 0 0' >> /etc/fstab
+else
+    echo "Nincsenek megfelelő lemezek (/dev/sdb, /dev/sdc) a RAID létrehozásához"
+fi
 
 echo "A telepítés sikeresen befejeződött!"
