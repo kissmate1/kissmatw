@@ -2,9 +2,6 @@
 set -e  # Azonnali kilépés, ha egy parancs nem nullával tér vissza
 set -x  # Hibakeresés engedélyezése, a végrehajtott parancsok megjelenítéséhez
 
-# A script saját magát futtathatóvá teszi
-chmod +x "$0"
-
 # Frissítsük a csomaglistát
 PATH=$PATH:"/sbin"
 apt-get update -y
@@ -12,8 +9,8 @@ apt-get update -y
 # Telepítsük a szükséges csomagokat
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server
 
-# Node-RED telepítése
-npm install -g --unsafe-perm node-red@latest
+# Node-RED telepítése (without --unsafe-perm flag)
+npm install -g node-red@latest
 
 # VirtualBox telepítése Oracle Repositoryből
 # echo "deb http://download.virtualbox.org/virtualbox/debian $(lsb_release -cs) contrib" | tee /etc/apt/sources.list.d/virtualbox.list
@@ -50,14 +47,20 @@ systemctl daemon-reload
 systemctl enable nodered.service
 systemctl start nodered.service
 
+# Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul...
+echo "Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul..."
+sleep 5
+
 # Ellenőrizzük a telepített szolgáltatások állapotát
 echo "Telepített szolgáltatások állapota:"
+all_services_ok=true
 for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server; do
     echo -n "$service: "
     if systemctl is-active --quiet $service; then
         echo "fut"
     else
         echo "nem fut"
+        all_services_ok=false
     fi
 done
 
@@ -67,15 +70,24 @@ echo "NFS fájlmegosztás beállítása..."
 # Készítsünk egy megosztott könyvtárat
 mkdir -p /mnt/nfs_share
 
-# A /etc/exports fájlban hozzáadjuk a megosztásokat
-echo "/mnt/nfs_share *(rw,sync,no_subtree_check)" >> /etc/exports
+# A /etc/exports fájlban hozzáadjuk a megosztásokat, biztonságos IP-címekre korlátozva
+# Itt csak a 192.168.1.0/24 alhálózat gépei férhetnek hozzá
+echo "/mnt/nfs_share 192.168.1.0/24(rw,sync,no_subtree_check)" >> /etc/exports
 
 # Az NFS szolgáltatás újraindítása, hogy a beállítások érvényesüljenek
 exportfs -a
 systemctl restart nfs-kernel-server
 
-# Tűzfal beállítások frissítése
-ufw allow from any to any port 2049 proto tcp
+# Tűzfal beállítások frissítése, csak a biztonságos IP-címek számára
+# Cseréld le 192.168.1.0/24-t a saját alhálózatodra vagy IP-címedre
+ufw allow from 192.168.1.0/24 to any port 2049 proto tcp
 ufw reload
+
+# Ellenőrző üzenet a telepítés után
+if $all_services_ok; then
+    echo "Minden szolgáltatás sikeresen telepítve és fut."
+else
+    echo "Néhány szolgáltatás nem fut. Kérjük, ellenőrizze a hibaüzeneteket és próbálja újra."
+fi
 
 echo "A telepítés sikeresen befejeződött!"
