@@ -7,46 +7,20 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
-# Progreszszázalék változó
-PROGRESS=0
-
-# Progreszszázalék frissítése
-update_progress() {
-    local step=$1
-    local total=$2
-    PROGRESS=$(( (step * 100) / total ))
-    echo -ne "Telepítés: $PROGRESS%   \r"
-}
-
-# A telepítési állapot folyamatos mutatása háttérben
-show_progress() {
-    while :; do
-        echo -ne "Telepítés: $PROGRESS%   \r"  # Dinamikusan változik a százalék
-        sleep 1
-    done
-}
-
-# A progressz megjelenítése háttérben
-show_progress &
-
 # Frissítsük a csomaglistát
 echo -e "${GREEN}Csomaglista frissítése...${NC}"
-update_progress 1 10
 apt-get update -y > /dev/null 2>&1 && echo -e "${GREEN}Csomaglista sikeresen frissítve.${NC}" || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
 
 # Telepítsük a szükséges csomagokat
 echo -e "${GREEN}Szükséges csomagok telepítése...${NC}"
-update_progress 2 10
 DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-common nfs-kernel-server samba samba-common-bin > /dev/null 2>&1 && echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
 
 # Node-RED telepítése
 echo -e "${GREEN}Node-RED telepítése...${NC}"
-update_progress 3 10
 npm install -g node-red@latest > /dev/null 2>&1 && echo -e "${GREEN}Node-RED sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
 
 # Node-RED rendszerindító fájl létrehozása
 echo -e "${GREEN}Node-RED rendszerindító fájl létrehozása...${NC}"
-update_progress 4 10
 cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
 Description=Node-RED graphical event wiring tool
@@ -70,19 +44,16 @@ EOF
 
 # Node-RED indítása
 echo -e "${GREEN}Node-RED indítása...${NC}"
-update_progress 5 10
 systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && systemctl start nodered.service > /dev/null 2>&1 && echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}" || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
 
 # NFS fájlmegosztás beállítása IP-cím megadása nélkül
 echo -e "${GREEN}NFS fájlmegosztás beállítása...${NC}"
-update_progress 6 10
 mkdir -p /mnt/nfs_share > /dev/null 2>&1
 echo "/mnt/nfs_share *(rw,sync,no_subtree_check)" >> /etc/exports > /dev/null 2>&1  # IP-cím nélkül
 exportfs -a > /dev/null 2>&1 && systemctl restart nfs-kernel-server > /dev/null 2>&1 && echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}" || { echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}"; exit 1; }
 
 # Samba fájlmegosztás beállítása IP-cím megadása nélkül
 echo -e "${GREEN}Samba fájlmegosztás beállítása...${NC}"
-update_progress 7 10
 mkdir -p /srv/samba/share > /dev/null 2>&1
 cat <<EOF >> /etc/samba/smb.conf
 [share]
@@ -97,7 +68,6 @@ systemctl restart smbd > /dev/null 2>&1 && systemctl enable smbd > /dev/null 2>&
 
 # Összegzés
 echo -e "${GREEN}A telepítés sikeresen befejeződött.${NC}"
-update_progress 10 10
 
 # Háttérben futtatjuk az auto_backup.sh scriptet
 echo -e "${GREEN}Indítjuk az auto_backup.sh scriptet nohup használatával...${NC}"
