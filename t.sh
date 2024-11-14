@@ -52,7 +52,7 @@ else
     exit 1
 fi
 
-# Node-RED unit file létrehozása
+# Node-RED rendszerindító fájl létrehozása
 echo -e "${GREEN}Node-RED rendszerindító fájl létrehozása...${NC}" | tee -a $LOG_FILE
 update_progress 4 10
 cat <<EOF > /etc/systemd/system/nodered.service
@@ -64,7 +64,7 @@ Wants=network.target
 Type=simple
 User=$(whoami)
 WorkingDirectory=/home/$(whoami)/.node-red
-ExecStart=/usr/bin/env node-red --max-old-space-size=256
+ExecStart=/usr/bin/env node-red start --max-old-space-size=256
 Restart=always
 Environment="NODE_OPTIONS=--max-old-space-size=256"
 Nice=10
@@ -76,7 +76,7 @@ KillMode=process
 WantedBy=multi-user.target
 EOF
 
-# Node-RED indítása
+# Rendszerindító fájl újratöltése, engedélyezés és elindítás
 echo -e "${GREEN}Node-RED indítása...${NC}" | tee -a $LOG_FILE
 update_progress 5 10
 if systemctl daemon-reload && systemctl enable nodered.service && systemctl start nodered.service; then
