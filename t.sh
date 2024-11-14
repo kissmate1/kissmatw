@@ -21,22 +21,10 @@ update_progress() {
 # A telepítési állapot folyamatos mutatása háttérben
 show_progress() {
     while :; do
-        echo -ne "Telepítés: $PROGRESS%   \r"
+        echo -ne "Telepítés: $PROGRESS%   \r"  # Dinamikusan változik a százalék
         sleep 1
     done
 }
-
-# IP-cím bekérése
-echo -e "${GREEN}Adja meg az IP-címet (vagy IP-tartományt), amely hozzáférést kap a NFS és Samba megosztásokhoz:${NC}"
-read -p "IP-cím (pl. 192.168.1.0/24): " SHARED_IP
-
-# Ellenőrizzük, hogy érvényes IP-t adtak-e meg
-if [[ ! "$SHARED_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
-    echo -e "${RED}Hibás IP-cím formátum! Kérem, próbálja újra.${NC}"
-    exit 1
-fi
-
-# Most kezdjük el a telepítést, amikor az IP-cím megvan
 
 # A progressz megjelenítése háttérben
 show_progress &
@@ -85,15 +73,15 @@ echo -e "${GREEN}Node-RED indítása...${NC}"
 update_progress 5 10
 systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && systemctl start nodered.service > /dev/null 2>&1 && echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}" || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
 
-# Ellenőrizzük a megadott IP-címet NFS és Samba konfigurációban
-echo -e "${GREEN}Beállítjuk a NFS fájlmegosztást az IP-címhez: $SHARED_IP${NC}"
+# NFS fájlmegosztás beállítása IP-cím megadása nélkül
+echo -e "${GREEN}NFS fájlmegosztás beállítása...${NC}"
 update_progress 6 10
 mkdir -p /mnt/nfs_share > /dev/null 2>&1
-echo "/mnt/nfs_share $SHARED_IP(rw,sync,no_subtree_check)" >> /etc/exports > /dev/null 2>&1
+echo "/mnt/nfs_share *(rw,sync,no_subtree_check)" >> /etc/exports > /dev/null 2>&1  # IP-cím nélkül
 exportfs -a > /dev/null 2>&1 && systemctl restart nfs-kernel-server > /dev/null 2>&1 && echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}" || { echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}"; exit 1; }
 
-# Samba megosztás beállítása
-echo -e "${GREEN}Beállítjuk a Samba fájlmegosztást az IP-címhez: $SHARED_IP${NC}"
+# Samba fájlmegosztás beállítása IP-cím megadása nélkül
+echo -e "${GREEN}Samba fájlmegosztás beállítása...${NC}"
 update_progress 7 10
 mkdir -p /srv/samba/share > /dev/null 2>&1
 cat <<EOF >> /etc/samba/smb.conf
