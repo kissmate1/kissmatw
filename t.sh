@@ -42,7 +42,7 @@ fi
 # Telepítsük a szükséges csomagokat
 echo -e "${GREEN}Szükséges csomagok telepítése...${NC}"
 update_progress 2 10
-if DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server samba samba-common-bin; then
+if DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-common nfs-kernel-server samba samba-common-bin; then
     echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}"
 else
     echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"
@@ -108,6 +108,8 @@ echo -e "${GREEN}Beállítjuk a NFS fájlmegosztást az IP-címhez: $SHARED_IP${
 update_progress 6 10
 mkdir -p /mnt/nfs_share
 echo "/mnt/nfs_share $SHARED_IP(rw,sync,no_subtree_check)" >> /etc/exports
+
+# Töröljük a régi cache-t és exportáljuk az új beállításokat
 if exportfs -a && systemctl restart nfs-kernel-server; then
     echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}"
 else
