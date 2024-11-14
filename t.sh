@@ -7,36 +7,54 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
+# A log fájl és a progressziós fájl beállítása
+LOG_FILE="/var/log/telepites.log"
+PROGRESS_FILE="/tmp/progress.txt"
+echo "" > $LOG_FILE
+echo "" > $PROGRESS_FILE
+
+# Progreszszázalék frissítése
+update_progress() {
+    local step=$1
+    local total=$2
+    local percent=$(( (step * 100) / total ))
+    echo "$percent%" > $PROGRESS_FILE
+    echo -e "${GREEN}Telepítés: $percent%${NC}"  # Frissítés a terminálon
+}
+
 # Frissítsük a csomaglistát
-PATH=$PATH:"/sbin"
-echo -e "${GREEN}Csomaglista frissítése...${NC}"
+echo -e "${GREEN}Csomaglista frissítése...${NC}" | tee -a $LOG_FILE
+update_progress 1 10
 if apt-get update -y; then
-    echo -e "${GREEN}Csomaglista sikeresen frissítve.${NC}"
+    echo -e "${GREEN}Csomaglista sikeresen frissítve.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"
+    echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
 # Telepítsük a szükséges csomagokat
-echo -e "${GREEN}Szükséges csomagok telepítése...${NC}"
+echo -e "${GREEN}Szükséges csomagok telepítése...${NC}" | tee -a $LOG_FILE
+update_progress 2 10
 if DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server samba samba-common-bin; then
-    echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}"
+    echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"
+    echo -e "${RED}Hiba a csomagok telepítésekor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
-# Node-RED telepítése (without --unsafe-perm flag)
-echo -e "${GREEN}Node-RED telepítése...${NC}"
+# Node-RED telepítése
+echo -e "${GREEN}Node-RED telepítése...${NC}" | tee -a $LOG_FILE
+update_progress 3 10
 if npm install -g node-red@latest; then
-    echo -e "${GREEN}Node-RED sikeresen telepítve.${NC}"
+    echo -e "${GREEN}Node-RED sikeresen telepítve.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"
+    echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
 # Node-RED unit file létrehozása
-echo -e "${GREEN}Node-RED rendszerindító fájl létrehozása...${NC}"
+echo -e "${GREEN}Node-RED rendszerindító fájl létrehozása...${NC}" | tee -a $LOG_FILE
+update_progress 4 10
 cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
 Description=Node-RED graphical event wiring tool
@@ -46,13 +64,11 @@ Wants=network.target
 Type=simple
 User=$(whoami)
 WorkingDirectory=/home/$(whoami)/.node-red
-ExecStart=/usr/bin/env node-red-pi --max-old-space-size=256
+ExecStart=/usr/bin/env node-red --max-old-space-size=256
 Restart=always
 Environment="NODE_OPTIONS=--max-old-space-size=256"
-# Nice options
 Nice=10
 EnvironmentFile=-/etc/nodered/.env
-# Make available to all devices
 SyslogIdentifier=Node-RED
 KillMode=process
 
@@ -61,57 +77,40 @@ WantedBy=multi-user.target
 EOF
 
 # Node-RED indítása
-echo -e "${GREEN}Node-RED indítása...${NC}"
+echo -e "${GREEN}Node-RED indítása...${NC}" | tee -a $LOG_FILE
+update_progress 5 10
 if systemctl daemon-reload && systemctl enable nodered.service && systemctl start nodered.service; then
-    echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}"
+    echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
+    echo -e "${RED}Hiba a Node-RED indításakor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
-# Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul...
-echo -e "${GREEN}Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul...${NC}"
-sleep 5
+# Kérjük be a felhasználótól az IP-címet az NFS és Samba megosztáshoz
+echo -e "${GREEN}Adja meg az IP-címet (vagy IP-tartományt), amely hozzáférést kap a NFS és Samba megosztásokhoz:${NC}"
+read -p "IP-cím (pl. 192.168.1.0/24): " SHARED_IP
 
-# Ellenőrizzük a telepített szolgáltatások állapotát
-echo -e "${GREEN}Telepített szolgáltatások állapota:${NC}"
-all_services_ok=true
-for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server samba; do
-    echo -n "$service: "
-    if systemctl is-active --quiet $service; then
-        echo -e "${GREEN}fut${NC}"
-    else
-        echo -e "${RED}$service nem fut${NC}"
-        all_services_ok=false
-    fi
-done
+# Ellenőrizzük, hogy érvényes IP-t adtak-e meg
+if [[ ! "$SHARED_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
+    echo -e "${RED}Hibás IP-cím formátum! Kérem, próbálja újra.${NC}" | tee -a $LOG_FILE
+    exit 1
+fi
 
-# NFS konfiguráció - megosztott könyvtár létrehozása
-echo -e "${GREEN}NFS fájlmegosztás beállítása...${NC}"
-
-# Készítsünk egy megosztott könyvtárat
+# Ellenőrizzük a megadott IP-címet NFS és Samba konfigurációban
+echo -e "${GREEN}Beállítjuk a NFS fájlmegosztást az IP-címhez: $SHARED_IP${NC}" | tee -a $LOG_FILE
+update_progress 6 10
 mkdir -p /mnt/nfs_share
-
-# A /etc/exports fájlban hozzáadjuk a megosztásokat, biztonságos IP-címekre korlátozva
-echo "/mnt/nfs_share 192.168.1.0/24(rw,sync,no_subtree_check)" >> /etc/exports
-
-# Az NFS szolgáltatás újraindítása, hogy a beállítások érvényesüljenek
+echo "/mnt/nfs_share $SHARED_IP(rw,sync,no_subtree_check)" >> /etc/exports
 if exportfs -a && systemctl restart nfs-kernel-server; then
-    echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}"
+    echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}"
+    echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
-# Samba megosztás konfigurálása
-echo -e "${GREEN}Samba fájlmegosztás beállítása...${NC}"
-
-# Samba konfigurálása
+echo -e "${GREEN}Beállítjuk a Samba fájlmegosztást az IP-címhez: $SHARED_IP${NC}" | tee -a $LOG_FILE
 mkdir -p /srv/samba/share
-
-# Samba konfiguráció hozzáadása
 cat <<EOF >> /etc/samba/smb.conf
-
 [share]
    path = /srv/samba/share
    browseable = yes
@@ -121,26 +120,19 @@ cat <<EOF >> /etc/samba/smb.conf
    force group = nogroup
 EOF
 
-# A Samba szolgáltatás újraindítása
 if systemctl restart smbd && systemctl enable smbd; then
-    echo -e "${GREEN}Samba fájlmegosztás sikeresen beállítva.${NC}"
+    echo -e "${GREEN}Samba fájlmegosztás sikeresen beállítva.${NC}" | tee -a $LOG_FILE
 else
-    echo -e "${RED}Hiba a Samba fájlmegosztás beállításakor!${NC}"
+    echo -e "${RED}Hiba a Samba fájlmegosztás beállításakor!${NC}" | tee -a $LOG_FILE
     exit 1
 fi
 
-# Ellenőrző üzenet a telepítés után
-if $all_services_ok; then
-    echo -e "${GREEN}Minden szolgáltatás sikeresen telepítve és fut.${NC}"
-else
-    echo -e "${RED}Néhány szolgáltatás nem fut. Kérjük, ellenőrizze a hibaüzeneteket és próbálja újra.${NC}"
-    exit 1
-fi
+# Összegzés
+echo -e "${GREEN}A telepítés sikeresen befejeződött.${NC}" | tee -a $LOG_FILE
+update_progress 10 10
 
-echo -e "${GREEN}A telepítés sikeresen befejeződött!${NC}"
-
-# Indítsuk el az auto_backup.sh scriptet nohup segítségével, hogy a háttérben fusson
-echo -e "${GREEN}Indítjuk az auto_backup.sh scriptet nohup használatával...${NC}"
+# Háttérben futtatjuk az auto_backup.sh scriptet
+echo -e "${GREEN}Indítjuk az auto_backup.sh scriptet nohup használatával...${NC}" | tee -a $LOG_FILE
 nohup /path/to/auto_backup.sh &
 
-echo -e "${GREEN}A rendszer állapotának automatikus mentése mostantól háttérben fut.${NC}"
+echo -e "${GREEN}A rendszer állapotának automatikus mentése mostantól háttérben fut.${NC}" | tee -a $LOG_FILE
