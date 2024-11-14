@@ -4,20 +4,36 @@ set -x  # Hibakeresés engedélyezése, a végrehajtott parancsok megjelenítés
 
 # ANSI színek definiálása
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
 # Frissítsük a csomaglistát
 PATH=$PATH:"/sbin"
 echo -e "${GREEN}Csomaglista frissítése...${NC}"
-apt-get update -y
+if apt-get update -y; then
+    echo -e "${GREEN}Csomaglista sikeresen frissítve.${NC}"
+else
+    echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"
+    exit 1
+fi
 
 # Telepítsük a szükséges csomagokat
 echo -e "${GREEN}Szükséges csomagok telepítése...${NC}"
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server samba samba-common-bin
+if DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-kernel-server samba samba-common-bin; then
+    echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}"
+else
+    echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"
+    exit 1
+fi
 
 # Node-RED telepítése (without --unsafe-perm flag)
 echo -e "${GREEN}Node-RED telepítése...${NC}"
-npm install -g node-red@latest
+if npm install -g node-red@latest; then
+    echo -e "${GREEN}Node-RED sikeresen telepítve.${NC}"
+else
+    echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"
+    exit 1
+fi
 
 # Node-RED unit file létrehozása
 echo -e "${GREEN}Node-RED rendszerindító fájl létrehozása...${NC}"
@@ -46,9 +62,12 @@ EOF
 
 # Node-RED indítása
 echo -e "${GREEN}Node-RED indítása...${NC}"
-systemctl daemon-reload
-systemctl enable nodered.service
-systemctl start nodered.service
+if systemctl daemon-reload && systemctl enable nodered.service && systemctl start nodered.service; then
+    echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}"
+else
+    echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
+    exit 1
+fi
 
 # Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul...
 echo -e "${GREEN}Kérem, várjon néhány másodpercet, amíg minden szolgáltatás elindul...${NC}"
@@ -62,7 +81,7 @@ for service in ssh apache2 mariadb mosquitto nodered nfs-kernel-server samba; do
     if systemctl is-active --quiet $service; then
         echo -e "${GREEN}fut${NC}"
     else
-        echo "nem fut"
+        echo -e "${RED}$service nem fut${NC}"
         all_services_ok=false
     fi
 done
@@ -77,8 +96,12 @@ mkdir -p /mnt/nfs_share
 echo "/mnt/nfs_share 192.168.1.0/24(rw,sync,no_subtree_check)" >> /etc/exports
 
 # Az NFS szolgáltatás újraindítása, hogy a beállítások érvényesüljenek
-exportfs -a
-systemctl restart nfs-kernel-server
+if exportfs -a && systemctl restart nfs-kernel-server; then
+    echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}"
+else
+    echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}"
+    exit 1
+fi
 
 # Samba megosztás konfigurálása
 echo -e "${GREEN}Samba fájlmegosztás beállítása...${NC}"
@@ -99,14 +122,25 @@ cat <<EOF >> /etc/samba/smb.conf
 EOF
 
 # A Samba szolgáltatás újraindítása
-systemctl restart smbd
-systemctl enable smbd
+if systemctl restart smbd && systemctl enable smbd; then
+    echo -e "${GREEN}Samba fájlmegosztás sikeresen beállítva.${NC}"
+else
+    echo -e "${RED}Hiba a Samba fájlmegosztás beállításakor!${NC}"
+    exit 1
+fi
 
 # Ellenőrző üzenet a telepítés után
 if $all_services_ok; then
     echo -e "${GREEN}Minden szolgáltatás sikeresen telepítve és fut.${NC}"
 else
-    echo "Néhány szolgáltatás nem fut. Kérjük, ellenőrizze a hibaüzeneteket és próbálja újra."
+    echo -e "${RED}Néhány szolgáltatás nem fut. Kérjük, ellenőrizze a hibaüzeneteket és próbálja újra.${NC}"
+    exit 1
 fi
 
 echo -e "${GREEN}A telepítés sikeresen befejeződött!${NC}"
+
+# Indítsuk el az auto_backup.sh scriptet nohup segítségével, hogy a háttérben fusson
+echo -e "${GREEN}Indítjuk az auto_backup.sh scriptet nohup használatával...${NC}"
+nohup /path/to/auto_backup.sh &
+
+echo -e "${GREEN}A rendszer állapotának automatikus mentése mostantól háttérben fut.${NC}"
