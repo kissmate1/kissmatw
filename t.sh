@@ -13,7 +13,7 @@ apt-get update -y > /dev/null 2>&1 && echo -e "${GREEN}Csomaglista sikeresen fri
 
 # Telepítsük a szükséges csomagokat
 echo -e "${GREEN}Szükséges csomagok telepítése...${NC}"
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm nfs-common nfs-kernel-server samba samba-common-bin > /dev/null 2>&1 && echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
+DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 && echo -e "${GREEN}Csomagok sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
 
 # Node-RED telepítése
 echo -e "${GREEN}Node-RED telepítése...${NC}"
@@ -45,26 +45,6 @@ EOF
 # Node-RED indítása
 echo -e "${GREEN}Node-RED indítása...${NC}"
 systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && systemctl start nodered.service > /dev/null 2>&1 && echo -e "${GREEN}Node-RED sikeresen elindítva.${NC}" || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
-
-# NFS fájlmegosztás beállítása IP-cím megadása nélkül
-echo -e "${GREEN}NFS fájlmegosztás beállítása...${NC}"
-mkdir -p /mnt/nfs_share > /dev/null 2>&1
-echo "/mnt/nfs_share *(rw,sync,no_subtree_check)" >> /etc/exports > /dev/null 2>&1  # IP-cím nélkül
-exportfs -a > /dev/null 2>&1 && systemctl restart nfs-kernel-server > /dev/null 2>&1 && echo -e "${GREEN}NFS fájlmegosztás sikeresen beállítva.${NC}" || { echo -e "${RED}Hiba az NFS fájlmegosztás beállításakor!${NC}"; exit 1; }
-
-# Samba fájlmegosztás beállítása IP-cím megadása nélkül
-echo -e "${GREEN}Samba fájlmegosztás beállítása...${NC}"
-mkdir -p /srv/samba/share > /dev/null 2>&1
-cat <<EOF >> /etc/samba/smb.conf
-[share]
-   path = /srv/samba/share
-   browseable = yes
-   read only = no
-   guest ok = yes
-   force user = nobody
-   force group = nogroup
-EOF
-systemctl restart smbd > /dev/null 2>&1 && systemctl enable smbd > /dev/null 2>&1 && echo -e "${GREEN}Samba fájlmegosztás sikeresen beállítva.${NC}" || { echo -e "${RED}Hiba a Samba fájlmegosztás beállításakor!${NC}"; exit 1; }
 
 # Összegzés
 echo -e "${GREEN}A telepítés sikeresen befejeződött.${NC}"
