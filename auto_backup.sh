@@ -46,3 +46,5 @@ while true; do
     # 30 perc várakozás (1800 másodperc)
     sleep 1800
 done
+
+# futattása: nohup ./auto_backup.sh &
