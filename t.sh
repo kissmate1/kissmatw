@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e  # Azonnali kilépés, ha egy parancs nem nullával tér vissza
-set -x  # Hibakeresés engedélyezése, a végrehajtott parancsok megjelenítéséhez
 
 # ANSI színek definiálása
 GREEN='\033[0;32m'
@@ -8,21 +6,19 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
-# Frissítsük a csomaglistát
-echo -e "${BLUE}Csomaglista frissítése...${NC}"
-apt-get update -y > /dev/null 2>&1 && echo -e "${BLUE}Csomaglista sikeresen frissítve.${NC}" || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
+# Telepítési folyamat definíciója
+install_process() {
+    echo -e "${BLUE}Csomaglista frissítése...${NC}"
+    apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
 
-# Telepítsük a szükséges csomagokat
-echo -e "${BLUE}Szükséges csomagok telepítése...${NC}"
-DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 && echo -e "${BLUE}Csomagok sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
+    echo -e "${BLUE}Szükséges csomagok telepítése...${NC}"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
 
-# Node-RED telepítése
-echo -e "${BLUE}Node-RED telepítése...${NC}"
-npm install -g node-red@latest > /dev/null 2>&1 && echo -e "${BLUE}Node-RED sikeresen telepítve.${NC}" || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
+    echo -e "${BLUE}Node-RED telepítése...${NC}"
+    npm install -g node-red@latest > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
 
-# Node-RED rendszerindító fájl létrehozása
-echo -e "${BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
-cat <<EOF > /etc/systemd/system/nodered.service
+    echo -e "${BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
+    cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
 Description=Node-RED graphical event wiring tool
 Wants=network.target
@@ -43,21 +39,32 @@ KillMode=process
 WantedBy=multi-user.target
 EOF
 
-# Node-RED indítása
-echo -e "${BLUE}Node-RED indítása...${NC}"
-systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && systemctl start nodered.service > /dev/null 2>&1 && echo -e "${BLUE}Node-RED sikeresen elindítva.${NC}" || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
+    echo -e "${BLUE}Node-RED indítása...${NC}"
+    systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && systemctl start nodered.service > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
 
-# Összegzés
-echo -e "${BLUE}A telepítés sikeresen befejeződött.${NC}"
+    nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
+}
 
-# Háttérben futtatjuk az auto_backup.sh scriptet
-echo -e "${BLUE}Indítjuk az auto_backup.sh scriptet nohup használatával...${NC}"
-nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
+# Telepítési folyamat háttérbe küldése
+install_process &
 
-echo -e "${BLUE}A rendszer állapotának automatikus mentése mostantól háttérben fut.${NC}"
+# Telepítési csík és százalékos kijelző
+steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "auto_backup.sh indítása")
+total_steps=${#steps[@]}
+
+for i in "${!steps[@]}"; do
+    sleep 5  # Itt állíthatod be a megfelelő időzítést minden lépéshez
+    progress=$(( (i + 1) * 100 / total_steps ))
+    echo -ne "${BLUE}["
+    for ((j=0; j<=progress/2; j++)); do echo -ne "#"; done
+    for ((j=progress/2+1; j<=50; j++)); do echo -ne " "; done
+    echo -ne "] ${progress}% - ${steps[$i]}${NC}\r"
+done
+
+wait
 
 # Telepített alkalmazások ellenőrzése és indítása
-echo -e "${BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
+echo -e "\n${BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
 
 declare -a services=("ufw" "ssh" "nmap" "apache2" "mariadb" "mosquitto" "node-red")
 
