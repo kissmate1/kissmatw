@@ -44,7 +44,7 @@ EOF
     update_progress_bar 4
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
-    systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && node-red start > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
+    systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1 && nohup node-red start > /dev/null 2>&1 & || { echo -e "${RED}Hiba a Node-RED indításakor!${NC}"; exit 1; }
     update_progress_bar 5
 
     nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
@@ -86,7 +86,7 @@ do
     else
         echo -e "${RED}$service nem fut.${NC}"
         if [ $service == "node-red" ]; then
-            node-red start > /dev/null 2>&1 && echo -e "${GREEN}$service sikeresen elindítva.${NC}" || echo -e "${RED}Hiba a $service indításakor!${NC}"
+            nohup node-red start > /dev/null 2>&1 && echo -e "${GREEN}$service sikeresen elindítva.${NC}" || echo -e "${RED}Hiba a $service indításakor!${NC}"
         else
             systemctl start $service > /dev/null 2>&1 && echo -e "${GREEN}$service sikeresen elindítva.${NC}" || echo -e "${RED}Hiba a $service indításakor!${NC}"
         fi
