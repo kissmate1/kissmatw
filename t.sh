@@ -92,7 +92,7 @@ do
     else
         echo -e "${RED}$service nem fut.${NC}"
         if [ $service == "node-red" ]; then
-            nohup node-red start > /dev/null 2>&1 &
+            node-red start > /dev/null 2>&1 &
             sleep 2
             if ! pgrep -f node-red > /dev/null; then
                 echo -e "${RED}Hiba a $service indításakor!${NC}"
@@ -100,7 +100,12 @@ do
                 echo -e "${GREEN}$service sikeresen elindítva.${NC}"
             fi
         else
-            systemctl start $service > /dev/null 2>&1 && echo -e "${GREEN}$service sikeresen elindítva.${NC}" || echo -e "${RED}Hiba a $service indításakor!${NC}"
+            systemctl start $service > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Hiba a $service indításakor!${NC}"
+            else
+                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
+            fi
         fi
     fi
 done
