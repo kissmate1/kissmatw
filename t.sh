@@ -86,6 +86,10 @@ echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása..
 
 declare -a services=("ufw" "ssh" "nmap" "apache2" "mariadb" "mosquitto" "node-red")
 
+# Naplózás fájlba, képernyőre nem
+LOG_FILE="/var/log/install.log"
+exec > "$LOG_FILE" 2>&1
+
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
@@ -117,15 +121,15 @@ done
 
 # További hibakezelés és naplózás
 echo -e "${LIGHT_BLUE}Naplózás engedélyezése...${NC}"
-exec > >(tee -i install.log)
-exec 2>&1
+exec > /dev/null 2>&1
 
-# Részletes szolgáltatás ellenőrzés és napló
+# Szolgáltatás naplózása fájlba, a képernyőre nem
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service naplózása...${NC}"
     journalctl -u $service --since "1 hour ago" > /tmp/$service.log
-    tail -n 20 /tmp/$service.log
+    tail -n 20 /tmp/$service.log >> "$LOG_FILE"
 done
 
+# A telepítés befejeződött üzenet a naplóba
 echo -e "\n${LIGHT_BLUE}A telepítés befejeződött.${NC}"
