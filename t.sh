@@ -84,12 +84,13 @@ wait
 # Telepített alkalmazások ellenőrzése és indítása
 echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
 
-declare -a services=("ufw" "ssh" "nmap" "apache2" "mariadb" "mosquitto" "node-red")
+declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "node-red")
 
 # Naplózás fájlba, képernyőre nem
 LOG_FILE="/var/log/install.log"
 exec > "$LOG_FILE" 2>&1
 
+# Ellenőrzési üzenetek csak a képernyőre
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
@@ -118,6 +119,14 @@ do
         fi
     fi
 done
+
+# Az nmap ellenőrzése a képernyőn, nem szolgáltatásként
+echo -e "${LIGHT_BLUE}Nmap ellenőrzése...${NC}"
+if command -v nmap &> /dev/null; then
+    echo -e "${GREEN}Nmap telepítve van.${NC}"
+else
+    echo -e "${RED}Nmap nem található.${NC}"
+fi
 
 # További hibakezelés és naplózás
 echo -e "${LIGHT_BLUE}Naplózás engedélyezése...${NC}"
