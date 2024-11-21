@@ -12,10 +12,16 @@ update_progress_bar() {
     total_steps=6
     progress=$(( (step) * 100 / total_steps ))
     echo -ne "${LIGHT_BLUE}["
-    for ((j=0; j<=progress/2; j++)); do echo -ne "#"; done
-    for ((j=progress/2+1; j<=50; j++)); do echo -ne " "; done
+
+    # Frissítési csík kirajzolása
+    for ((j=0; j<=progress/2; j++)); do
+        echo -ne "#"
+    done
+    for ((j=progress/2+1; j<=50; j++)); do
+        echo -ne " "
+    done
+
     echo -ne "] ${progress}%${NC}\r"
-    echo -ne "\n"
 }
 
 # Telepítési folyamat definíciója
@@ -57,7 +63,7 @@ EOF
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
     systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1
-    nohup node-red start > /dev/null 2>&1 &
+    systemctl start nodered.service > /dev/null 2>&1
     sleep 2
     if ! pgrep -f node-red > /dev/null; then
         echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
@@ -72,12 +78,7 @@ EOF
 # Telepítési folyamat háttérbe küldése
 install_process &
 
-# Minden lépéshez frissítse a telepítési csíkot és százalékos kijelzőt
-steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "auto_backup.sh indítása")
-for i in "${!steps[@]}"; do
-    update_progress_bar $((i+1))
-done
-
+# Várakozás a háttérfolyamat befejeződésére
 wait
 
 # Telepített alkalmazások ellenőrzése és indítása
@@ -91,21 +92,11 @@ do
         echo -e "${GREEN}$service fut.${NC}"
     else
         echo -e "${RED}$service nem fut.${NC}"
-        if [ $service == "node-red" ]; then
-            node-red start > /dev/null 2>&1 &
-            sleep 2
-            if ! pgrep -f node-red > /dev/null; then
-                echo -e "${RED}Hiba a $service indításakor!${NC}"
-            else
-                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
-            fi
+        systemctl start $service > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Hiba a $service indításakor!${NC}"
         else
-            systemctl start $service > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}Hiba a $service indításakor!${NC}"
-            else
-                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
-            fi
+            echo -e "${GREEN}$service sikeresen elindítva.${NC}"
         fi
     fi
 done
