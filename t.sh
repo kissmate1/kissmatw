@@ -11,20 +11,14 @@ update_progress_bar() {
     step=$1
     total_steps=6
     progress=$(( (step) * 100 / total_steps ))
-    echo -ne "${LIGHT_BLUE}["
-
-    # Frissítési csík kirajzolása
-    for ((j=0; j<=progress/2; j++)); do
-        echo -ne "#"
-    done
-    for ((j=progress/2+1; j<=50; j++)); do
-        echo -ne " "
-    done
-
+    echo -ne "${LIGHT_BLUE}[" 
+    for ((j=0; j<=progress/2; j++)); do echo -ne "#"; done
+    for ((j=progress/2+1; j<=50; j++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
+    echo -ne "\n"
 }
 
-# Telepítési folyamat definíciója
+# Csomagok telepítése és szükséges alkalmazások beállítása
 install_process() {
     echo -e "${LIGHT_BLUE}Csomaglista frissítése...${NC}"
     apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
@@ -48,9 +42,9 @@ Wants=network.target
 Type=simple
 User=$(whoami)
 WorkingDirectory=/home/$(whoami)/.node-red
-ExecStart=/usr/bin/env node-red start --max-old-space-size=256
+ExecStart=/usr/bin/env node-red start --max-old-space-size=512
 Restart=always
-Environment="NODE_OPTIONS=--max-old-space-size=256"
+Environment="NODE_OPTIONS=--max-old-space-size=512"
 Nice=10
 EnvironmentFile=-/etc/nodered/.env
 SyslogIdentifier=Node-RED
@@ -63,14 +57,15 @@ EOF
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
     systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1
-    systemctl start nodered.service > /dev/null 2>&1
-    sleep 2
+    nohup node-red start > /dev/null 2>&1 &
+    sleep 5
     if ! pgrep -f node-red > /dev/null; then
         echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
         exit 1
     fi
     update_progress_bar 5
 
+    # Auto backup script indítása
     nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
     update_progress_bar 6
 }
@@ -78,7 +73,12 @@ EOF
 # Telepítési folyamat háttérbe küldése
 install_process &
 
-# Várakozás a háttérfolyamat befejeződésére
+# Minden lépéshez frissítse a telepítési csíkot és százalékos kijelzőt
+steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "auto_backup.sh indítása")
+for i in "${!steps[@]}"; do
+    update_progress_bar $((i+1))
+done
+
 wait
 
 # Telepített alkalmazások ellenőrzése és indítása
@@ -88,15 +88,44 @@ declare -a services=("ufw" "ssh" "nmap" "apache2" "mariadb" "mosquitto" "node-re
 
 for service in "${services[@]}"
 do
+    echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
     if systemctl is-active --quiet $service; then
         echo -e "${GREEN}$service fut.${NC}"
     else
         echo -e "${RED}$service nem fut.${NC}"
-        systemctl start $service > /dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}Hiba a $service indításakor!${NC}"
+        echo -e "${LIGHT_BLUE}$service újraindítása...${NC}"
+
+        if [ "$service" == "node-red" ]; then
+            # Node-RED indítása, ha nem fut
+            systemctl start nodered.service > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Hiba a $service indításakor!${NC}"
+            else
+                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
+            fi
         else
-            echo -e "${GREEN}$service sikeresen elindítva.${NC}"
+            # Többi szolgáltatás indítása
+            systemctl start $service > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                echo -e "${RED}Hiba a $service indításakor!${NC}"
+            else
+                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
+            fi
         fi
     fi
 done
+
+# További hibakezelés és naplózás
+echo -e "${LIGHT_BLUE}Naplózás engedélyezése...${NC}"
+exec > >(tee -i install.log)
+exec 2>&1
+
+# Részletes szolgáltatás ellenőrzés és napló
+for service in "${services[@]}"
+do
+    echo -e "${LIGHT_BLUE}$service naplózása...${NC}"
+    journalctl -u $service --since "1 hour ago" > /tmp/$service.log
+    tail -n 20 /tmp/$service.log
+done
+
+echo -e "\n${LIGHT_BLUE}A telepítés befejeződött.${NC}"
