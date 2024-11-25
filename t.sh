@@ -91,6 +91,7 @@ echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása..
 declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "nodered")
 
 # Ellenőrzési üzenetek képernyőre és naplóba
+all_services_running=true
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
@@ -98,31 +99,30 @@ do
         echo -e "${GREEN}$service fut.${NC}"
     else
         echo -e "${RED}$service nem fut.${NC}"
-        echo -e "${LIGHT_BLUE}$service újraindítása...${NC}"
-        systemctl start $service > /dev/null 2>&1
-        if systemctl is-active --quiet $service; then
-            echo -e "${GREEN}$service sikeresen elindítva.${NC}"
-        else
-            echo -e "${RED}Hiba a $service indításakor!${NC}"
-        fi
+        all_services_running=false
     fi
 done
 
-# Az nmap ellenőrzése a képernyőn
+# Az nmap ellenőrzése
 echo -e "${LIGHT_BLUE}Nmap ellenőrzése...${NC}"
 if command -v nmap &> /dev/null; then
     echo -e "${GREEN}Nmap telepítve van.${NC}"
 else
     echo -e "${RED}Nmap nem található.${NC}"
+    all_services_running=false
 fi
 
-# Szolgáltatás naplózása fájlba
+# Összegzés
+if $all_services_running; then
+    echo -e "\n${GREEN}A telepítés sikeresen befejeződött, és minden szolgáltatás fut.${NC}"
+else
+    echo -e "\n${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut. Ellenőrizze a naplót!${NC}"
+fi
+
+# Szolgáltatások naplózása fájlba
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service naplózása...${NC}"
     journalctl -u $service --since "1 hour ago" > /tmp/$service.log
     tail -n 20 /tmp/$service.log >> "$LOG_FILE"
 done
-
-# A telepítés befejeződött üzenet
-echo -e "\n${LIGHT_BLUE}A telepítés befejeződött.${NC}"
