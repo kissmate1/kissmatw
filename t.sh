@@ -6,6 +6,10 @@ RED='\033[0;31m'
 LIGHT_BLUE='\033[1;34m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
+# Naplófájl definiálása
+LOG_FILE="/var/log/install.log"
+exec > "$LOG_FILE" 2>&1  # A teljes kimenet a naplóba kerül
+
 # Telepítési csík frissítése
 update_progress_bar() {
     step=$1
@@ -14,8 +18,7 @@ update_progress_bar() {
     echo -ne "${LIGHT_BLUE}[" 
     for ((j=0; j<=progress/2; j++)); do echo -ne "#"; done
     for ((j=progress/2+1; j<=50; j++)); do echo -ne " "; done
-    echo -ne "] ${progress}%${NC}\r"
-    echo -ne "\n"
+    echo -ne "] ${progress}%${NC}\r"  # Ugyanazt a sort írja felül
 }
 
 # Csomagok telepítése és szükséges alkalmazások beállítása
@@ -57,16 +60,17 @@ EOF
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
     systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1
-    nohup node-red start > /dev/null 2>&1 &
+    systemctl start nodered.service > /dev/null 2>&1
     sleep 5
-    if ! pgrep -f node-red > /dev/null; then
+    if ! systemctl is-active --quiet nodered.service; then
         echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
         exit 1
     fi
     update_progress_bar 5
 
     # Auto backup script indítása
-    nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
+    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+    nohup "$SCRIPT_DIR/auto_backup.sh" > /dev/null 2>&1 &
     update_progress_bar 6
 }
 
@@ -84,13 +88,9 @@ wait
 # Telepített alkalmazások ellenőrzése és indítása
 echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
 
-declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "node-red")
+declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "nodered")
 
-# Naplózás fájlba, képernyőre nem
-LOG_FILE="/var/log/install.log"
-exec > "$LOG_FILE" 2>&1
-
-# Ellenőrzési üzenetek csak a képernyőre
+# Ellenőrzési üzenetek képernyőre és naplóba
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
@@ -99,28 +99,16 @@ do
     else
         echo -e "${RED}$service nem fut.${NC}"
         echo -e "${LIGHT_BLUE}$service újraindítása...${NC}"
-
-        if [ "$service" == "node-red" ]; then
-            # Node-RED indítása, ha nem fut
-            systemctl start nodered.service > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}Hiba a $service indításakor!${NC}"
-            else
-                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
-            fi
+        systemctl start $service > /dev/null 2>&1
+        if systemctl is-active --quiet $service; then
+            echo -e "${GREEN}$service sikeresen elindítva.${NC}"
         else
-            # Többi szolgáltatás indítása
-            systemctl start $service > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}Hiba a $service indításakor!${NC}"
-            else
-                echo -e "${GREEN}$service sikeresen elindítva.${NC}"
-            fi
+            echo -e "${RED}Hiba a $service indításakor!${NC}"
         fi
     fi
 done
 
-# Az nmap ellenőrzése a képernyőn, nem szolgáltatásként
+# Az nmap ellenőrzése a képernyőn
 echo -e "${LIGHT_BLUE}Nmap ellenőrzése...${NC}"
 if command -v nmap &> /dev/null; then
     echo -e "${GREEN}Nmap telepítve van.${NC}"
@@ -128,11 +116,7 @@ else
     echo -e "${RED}Nmap nem található.${NC}"
 fi
 
-# További hibakezelés és naplózás
-echo -e "${LIGHT_BLUE}Naplózás engedélyezése...${NC}"
-exec > /dev/null 2>&1
-
-# Szolgáltatás naplózása fájlba, a képernyőre nem
+# Szolgáltatás naplózása fájlba
 for service in "${services[@]}"
 do
     echo -e "${LIGHT_BLUE}$service naplózása...${NC}"
@@ -140,5 +124,5 @@ do
     tail -n 20 /tmp/$service.log >> "$LOG_FILE"
 done
 
-# A telepítés befejeződött üzenet a naplóba
+# A telepítés befejeződött üzenet
 echo -e "\n${LIGHT_BLUE}A telepítés befejeződött.${NC}"
