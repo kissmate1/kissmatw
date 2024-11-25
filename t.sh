@@ -4,30 +4,33 @@
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 LIGHT_BLUE='\033[1;34m'
-NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
+NC='\033[0m' # No Color
 
 # Telepítési csík frissítése
 update_progress_bar() {
     step=$1
     total_steps=6
-    progress=$(( (step * 100) / total_steps )) # Százalékos arány kiszámítása
-    bar_width=50                               # A csík szélessége
-
-    filled=$(( (progress * bar_width) / 100 )) # Kitöltött rész kiszámítása
-    empty=$(( bar_width - filled ))            # Üres rész kiszámítása
-
-    echo -ne "${LIGHT_BLUE}[" 
+    progress=$(( (step * 100) / total_steps ))
+    bar_width=50
+    filled=$(( (progress * bar_width) / 100 ))
+    empty=$(( bar_width - filled ))
+    echo -ne "${LIGHT_BLUE}["
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
-
-    # Csak az utolsó lépés után ugrik új sorra
-    if [ "$step" -eq "$total_steps" ]; then
-        echo -ne "\n"
-    fi
+    [ "$step" -eq "$total_steps" ] && echo
 }
 
-# Csomagok telepítése és szükséges alkalmazások beállítása
+# Szabad port keresése
+find_free_port() {
+    local port=1880
+    while netstat -tuln | grep -q ":$port"; do
+        ((port++))
+    done
+    echo $port
+}
+
+# Telepítési folyamat
 install_process() {
     echo -e "${LIGHT_BLUE}Csomaglista frissítése...${NC}"
     apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
@@ -42,6 +45,7 @@ install_process() {
     update_progress_bar 3
 
     echo -e "${LIGHT_BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
+    free_port=$(find_free_port)
     cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
 Description=Node-RED graphical event wiring tool
@@ -51,7 +55,7 @@ Wants=network.target
 Type=simple
 User=$(whoami)
 WorkingDirectory=/home/$(whoami)/.node-red
-ExecStart=/usr/bin/env node-red start --max-old-space-size=512
+ExecStart=/usr/bin/env node-red -p $free_port --max-old-space-size=512
 Restart=always
 Environment="NODE_OPTIONS=--max-old-space-size=512"
 Nice=10
@@ -65,37 +69,36 @@ EOF
     update_progress_bar 4
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
-    systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1
-    nohup node-red start > /dev/null 2>&1 &
+    systemctl daemon-reload > /dev/null 2>&1
+    systemctl enable nodered.service > /dev/null 2>&1
+    systemctl start nodered.service > /dev/null 2>&1
     sleep 5
-    if ! pgrep -f node-red > /dev/null; then
+    if ! systemctl is-active --quiet nodered.service; then
         echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
         exit 1
     fi
     update_progress_bar 5
 
-    echo -e "${LIGHT_BLUE}Auto backup script indítása...${NC}"
-    nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
+    echo -e "${LIGHT_BLUE}UFW engedélyezése...${NC}"
+    ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW engedélyezésekor!${NC}"; exit 1; }
     update_progress_bar 6
 }
 
 # Telepítési folyamat elindítása
 install_process &
 
-# Telepítési lépések frissítése
-steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "auto_backup.sh indítása")
+steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "UFW engedélyezése")
 for i in "${!steps[@]}"; do
     update_progress_bar $((i+1))
 done
 
 wait
 
-# Telepített alkalmazások ellenőrzése
-echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
+# Szolgáltatások ellenőrzése
+echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
 
-declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "node-red")
+declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "node-red")
 
-# Ellenőrzési üzenetek
 all_services_running=true
 for service in "${services[@]}"
 do
@@ -108,9 +111,11 @@ do
     fi
 done
 
-# Telepítés összegzése
+# Összegzés
 if $all_services_running; then
     echo -e "${GREEN}A telepítés sikeresen befejeződött. Minden szolgáltatás fut.${NC}"
+    echo -e "${GREEN}Node-RED elérhető a $free_port porton.${NC}"
 else
-    echo -e "${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut. Kérjük, ellenőrizze a naplókat.${NC}"
+    echo -e "${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut.${NC}"
 fi
+
