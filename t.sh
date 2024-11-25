@@ -6,19 +6,25 @@ RED='\033[0;31m'
 LIGHT_BLUE='\033[1;34m'
 NC='\033[0m' # No Color (alapértelmezett szín visszaállítása)
 
-# Naplófájl definiálása
-LOG_FILE="/var/log/install.log"
-exec > "$LOG_FILE" 2>&1  # A teljes kimenet a naplóba kerül
-
 # Telepítési csík frissítése
 update_progress_bar() {
     step=$1
     total_steps=6
-    progress=$(( (step) * 100 / total_steps ))
+    progress=$(( (step * 100) / total_steps )) # Százalékos arány kiszámítása
+    bar_width=50                               # A csík szélessége
+
+    filled=$(( (progress * bar_width) / 100 )) # Kitöltött rész kiszámítása
+    empty=$(( bar_width - filled ))            # Üres rész kiszámítása
+
     echo -ne "${LIGHT_BLUE}[" 
-    for ((j=0; j<=progress/2; j++)); do echo -ne "#"; done
-    for ((j=progress/2+1; j<=50; j++)); do echo -ne " "; done
-    echo -ne "] ${progress}%${NC}\r"  # Ugyanazt a sort írja felül
+    for ((i=0; i<filled; i++)); do echo -ne "#"; done
+    for ((i=0; i<empty; i++)); do echo -ne " "; done
+    echo -ne "] ${progress}%${NC}\r"
+
+    # Csak az utolsó lépés után ugrik új sorra
+    if [ "$step" -eq "$total_steps" ]; then
+        echo -ne "\n"
+    fi
 }
 
 # Csomagok telepítése és szükséges alkalmazások beállítása
@@ -60,24 +66,23 @@ EOF
 
     echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
     systemctl daemon-reload > /dev/null 2>&1 && systemctl enable nodered.service > /dev/null 2>&1
-    systemctl start nodered.service > /dev/null 2>&1
+    nohup node-red start > /dev/null 2>&1 &
     sleep 5
-    if ! systemctl is-active --quiet nodered.service; then
+    if ! pgrep -f node-red > /dev/null; then
         echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
         exit 1
     fi
     update_progress_bar 5
 
-    # Auto backup script indítása
-    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-    nohup "$SCRIPT_DIR/auto_backup.sh" > /dev/null 2>&1 &
+    echo -e "${LIGHT_BLUE}Auto backup script indítása...${NC}"
+    nohup /path/to/auto_backup.sh > /dev/null 2>&1 &
     update_progress_bar 6
 }
 
-# Telepítési folyamat háttérbe küldése
+# Telepítési folyamat elindítása
 install_process &
 
-# Minden lépéshez frissítse a telepítési csíkot és százalékos kijelzőt
+# Telepítési lépések frissítése
 steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "auto_backup.sh indítása")
 for i in "${!steps[@]}"; do
     update_progress_bar $((i+1))
@@ -85,12 +90,12 @@ done
 
 wait
 
-# Telepített alkalmazások ellenőrzése és indítása
+# Telepített alkalmazások ellenőrzése
 echo -e "\n${LIGHT_BLUE}Telepített alkalmazások ellenőrzése és indítása...${NC}"
 
-declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "nodered")
+declare -a services=("ufw" "ssh" "apache2" "mariadb" "mosquitto" "node-red")
 
-# Ellenőrzési üzenetek képernyőre és naplóba
+# Ellenőrzési üzenetek
 all_services_running=true
 for service in "${services[@]}"
 do
@@ -103,26 +108,9 @@ do
     fi
 done
 
-# Az nmap ellenőrzése
-echo -e "${LIGHT_BLUE}Nmap ellenőrzése...${NC}"
-if command -v nmap &> /dev/null; then
-    echo -e "${GREEN}Nmap telepítve van.${NC}"
-else
-    echo -e "${RED}Nmap nem található.${NC}"
-    all_services_running=false
-fi
-
-# Összegzés
+# Telepítés összegzése
 if $all_services_running; then
-    echo -e "\n${GREEN}A telepítés sikeresen befejeződött, és minden szolgáltatás fut.${NC}"
+    echo -e "${GREEN}A telepítés sikeresen befejeződött. Minden szolgáltatás fut.${NC}"
 else
-    echo -e "\n${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut. Ellenőrizze a naplót!${NC}"
+    echo -e "${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut. Kérjük, ellenőrizze a naplókat.${NC}"
 fi
-
-# Szolgáltatások naplózása fájlba
-for service in "${services[@]}"
-do
-    echo -e "${LIGHT_BLUE}$service naplózása...${NC}"
-    journalctl -u $service --since "1 hour ago" > /tmp/$service.log
-    tail -n 20 /tmp/$service.log >> "$LOG_FILE"
-done
