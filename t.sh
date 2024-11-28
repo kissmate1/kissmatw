@@ -14,7 +14,7 @@ update_progress_bar() {
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
     empty=$(( bar_width - filled ))
-    echo -ne "${LIGHT_BLUE}[" 
+    echo -ne "${LIGHT_BLUE}["
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
@@ -59,7 +59,6 @@ ExecStart=/usr/bin/env node-red -p $free_port --max-old-space-size=512
 Restart=always
 Environment="NODE_OPTIONS=--max-old-space-size=512"
 Nice=10
-EnvironmentFile=-/etc/nodered/.env
 SyslogIdentifier=Node-RED
 KillMode=process
 
@@ -69,9 +68,14 @@ EOF
     update_progress_bar 4
 
     echo -e "${LIGHT_BLUE}Node-RED indítása a háttérben...${NC}"
-    # Itt indítjuk el Node-RED-et a háttérben a `&` használatával
-    nohup node-red -p $free_port --max-old-space-size=512 &>/dev/null &
+    systemctl daemon-reload > /dev/null 2>&1
+    systemctl enable nodered.service > /dev/null 2>&1
+    systemctl start nodered.service > /dev/null 2>&1
     sleep 5
+    if ! systemctl is-active --quiet nodered.service; then
+        echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
+        exit 1
+    fi
     update_progress_bar 5
 
     echo -e "${LIGHT_BLUE}UFW engedélyezése...${NC}"
@@ -101,16 +105,33 @@ configure_phpmyadmin() {
 configure_ufw() {
     echo -e "${LIGHT_BLUE}UFW tűzfal konfigurálása...${NC}"
     
-    # Engedélyezett portok
-    ufw allow ssh        # SSH port (22)
-    ufw allow 80/tcp     # HTTP port
-    ufw allow 443/tcp    # HTTPS port
-    ufw allow 1880/tcp   # Node-RED port
-    ufw allow 1883/tcp   # Mosquitto port
-    ufw allow 8080/tcp   # phpMyAdmin port
+    # Először beállítjuk az alapértelmezett szabályokat
+    ufw default deny incoming   # Alapértelmezett bejövő kapcsolatok blokkolása
+    ufw default allow outgoing  # Kimenő kapcsolatok engedélyezése
+
+    # SSH (22) port engedélyezése
+    ufw allow ssh
     
-    # Tűzfal újraindítása
-    ufw reload > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
+    # HTTP (80) port engedélyezése
+    ufw allow 80/tcp
+    
+    # HTTPS (443) port engedélyezése
+    ufw allow 443/tcp
+    
+    # Node-RED port engedélyezése (1880)
+    ufw allow 1880/tcp
+    
+    # Mosquitto port engedélyezése (1883)
+    ufw allow 1883/tcp
+    
+    # phpMyAdmin port engedélyezése (8080)
+    ufw allow 8080/tcp
+    
+    # Tűzfal engedélyezése
+    ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
+    
+    # Ellenőrizzük az UFW státuszát
+    ufw status verbose
 }
 
 # Telepítési folyamat elindítása
