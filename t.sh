@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 # Telepítési csík frissítése
 update_progress_bar() {
     step=$1
-    total_steps=7
+    total_steps=8
     progress=$(( (step * 100) / total_steps ))
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
@@ -19,6 +19,25 @@ update_progress_bar() {
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
     [ "$step" -eq "$total_steps" ] && echo
+}
+
+# Ellenőrizze és telepítse a szükséges csomagokat
+check_and_install_dependencies() {
+    echo -e "${LIGHT_BLUE}Szükséges csomagok ellenőrzése...${NC}"
+
+    # Ellenőrizzük a net-tools telepítését
+    if ! command -v netstat > /dev/null 2>&1; then
+        echo -e "${LIGHT_BLUE}net-tools telepítése (netstat szükséges)...${NC}"
+        apt-get install -y net-tools > /dev/null 2>&1 || { echo -e "${RED}Hiba a net-tools telepítésekor!${NC}"; exit 1; }
+    fi
+
+    # Ellenőrizzük az ufw telepítését
+    if ! command -v ufw > /dev/null 2>&1; then
+        echo -e "${LIGHT_BLUE}ufw telepítése...${NC}"
+        apt-get install -y ufw > /dev/null 2>&1 || { echo -e "${RED}Hiba az ufw telepítésekor!${NC}"; exit 1; }
+    fi
+
+    echo -e "${GREEN}Minden szükséges csomag telepítve van.${NC}"
 }
 
 # Szabad port keresése
@@ -37,7 +56,7 @@ install_process() {
     update_progress_bar 1
 
     echo -e "${LIGHT_BLUE}Szükséges csomagok telepítése...${NC}"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1; }
     update_progress_bar 2
 
     echo -e "${LIGHT_BLUE}Node-RED telepítése...${NC}"
@@ -77,10 +96,6 @@ EOF
         exit 1
     fi
     update_progress_bar 5
-
-    echo -e "${LIGHT_BLUE}UFW engedélyezése...${NC}"
-    ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW engedélyezésekor!${NC}"; exit 1; }
-    update_progress_bar 6
 }
 
 # phpMyAdmin konfigurálása és Apache-beállítások
@@ -89,70 +104,52 @@ configure_phpmyadmin() {
     
     # Apache konfigurálása phpMyAdmin számára
     if [ ! -f /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
-        sudo ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
+        ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
     fi
 
     # Apache port módosítása (8080)
-    sudo sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
-    sudo sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
+    sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
+    sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
     
     # Apache újraindítása
-    sudo systemctl restart apache2
-    update_progress_bar 7
+    systemctl restart apache2
+    update_progress_bar 6
 }
 
 # UFW konfigurálása
 configure_ufw() {
     echo -e "${LIGHT_BLUE}UFW tűzfal konfigurálása...${NC}"
     
-    # Először beállítjuk az alapértelmezett szabályokat
+    # Alapértelmezett szabályok beállítása
     ufw default deny incoming   # Alapértelmezett bejövő kapcsolatok blokkolása
     ufw default allow outgoing  # Kimenő kapcsolatok engedélyezése
 
-    # SSH (22) port engedélyezése
-    ufw allow ssh
-    
-    # HTTP (80) port engedélyezése
-    ufw allow 80/tcp
-    
-    # HTTPS (443) port engedélyezése
-    ufw allow 443/tcp
-    
-    # Node-RED port engedélyezése (1880)
-    ufw allow 1880/tcp
-    
-    # Mosquitto port engedélyezése (1883)
-    ufw allow 1883/tcp
-    
-    # phpMyAdmin port engedélyezése (8080)
-    ufw allow 8080/tcp
-    
+    # Portok engedélyezése
+    ufw allow ssh       # SSH (22)
+    ufw allow 80/tcp    # HTTP
+    ufw allow 443/tcp   # HTTPS
+    ufw allow 1880/tcp  # Node-RED
+    ufw allow 1883/tcp  # Mosquitto
+    ufw allow 8080/tcp  # phpMyAdmin
+
     # Tűzfal engedélyezése
     ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
     
     # Ellenőrizzük az UFW státuszát
     ufw status verbose
+    update_progress_bar 7
 }
 
-# Telepítési folyamat elindítása
-install_process &
+# Ellenőrzés és telepítési folyamat indítása
+check_and_install_dependencies
+install_process
 
-steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "UFW engedélyezése" "phpMyAdmin konfigurálása")
-for i in "${!steps[@]}"; do
-    update_progress_bar $((i+1))
-done
-
-wait
-
-# phpMyAdmin konfigurálása
+# phpMyAdmin és UFW konfigurálása
 configure_phpmyadmin
-
-# UFW konfigurálása
 configure_ufw
 
 # Szolgáltatások ellenőrzése
 echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
-
 declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "node-red")
 
 all_services_running=true
