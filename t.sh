@@ -9,12 +9,12 @@ NC='\033[0m' # No Color
 # Telepítési csík frissítése
 update_progress_bar() {
     step=$1
-    total_steps=6
+    total_steps=7
     progress=$(( (step * 100) / total_steps ))
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
     empty=$(( bar_width - filled ))
-    echo -ne "${LIGHT_BLUE}["
+    echo -ne "${LIGHT_BLUE}[" 
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
@@ -68,15 +68,10 @@ WantedBy=multi-user.target
 EOF
     update_progress_bar 4
 
-    echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
-    systemctl daemon-reload > /dev/null 2>&1
-    systemctl enable nodered.service > /dev/null 2>&1
-    systemctl start nodered.service > /dev/null 2>&1
+    echo -e "${LIGHT_BLUE}Node-RED indítása a háttérben...${NC}"
+    # Itt indítjuk el Node-RED-et a háttérben a `&` használatával
+    nohup node-red -p $free_port --max-old-space-size=512 &>/dev/null &
     sleep 5
-    if ! systemctl is-active --quiet nodered.service; then
-        echo -e "${RED}Hiba a Node-RED indításakor!${NC}"
-        exit 1
-    fi
     update_progress_bar 5
 
     echo -e "${LIGHT_BLUE}UFW engedélyezése...${NC}"
@@ -84,15 +79,55 @@ EOF
     update_progress_bar 6
 }
 
+# phpMyAdmin konfigurálása és Apache-beállítások
+configure_phpmyadmin() {
+    echo -e "${LIGHT_BLUE}phpMyAdmin konfigurálása...${NC}"
+    
+    # Apache konfigurálása phpMyAdmin számára
+    if [ ! -f /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
+        sudo ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
+    fi
+
+    # Apache port módosítása (8080)
+    sudo sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
+    sudo sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
+    
+    # Apache újraindítása
+    sudo systemctl restart apache2
+    update_progress_bar 7
+}
+
+# UFW konfigurálása
+configure_ufw() {
+    echo -e "${LIGHT_BLUE}UFW tűzfal konfigurálása...${NC}"
+    
+    # Engedélyezett portok
+    ufw allow ssh        # SSH port (22)
+    ufw allow 80/tcp     # HTTP port
+    ufw allow 443/tcp    # HTTPS port
+    ufw allow 1880/tcp   # Node-RED port
+    ufw allow 1883/tcp   # Mosquitto port
+    ufw allow 8080/tcp   # phpMyAdmin port
+    
+    # Tűzfal újraindítása
+    ufw reload > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
+}
+
 # Telepítési folyamat elindítása
 install_process &
 
-steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "UFW engedélyezése")
+steps=("Csomaglista frissítése" "Szükséges csomagok telepítése" "Node-RED telepítése" "Node-RED rendszerindító fájl létrehozása" "Node-RED indítása" "UFW engedélyezése" "phpMyAdmin konfigurálása")
 for i in "${!steps[@]}"; do
     update_progress_bar $((i+1))
 done
 
 wait
+
+# phpMyAdmin konfigurálása
+configure_phpmyadmin
+
+# UFW konfigurálása
+configure_ufw
 
 # Szolgáltatások ellenőrzése
 echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
@@ -118,4 +153,3 @@ if $all_services_running; then
 else
     echo -e "${RED}A telepítés befejeződött, de néhány szolgáltatás nem fut.${NC}"
 fi
-
