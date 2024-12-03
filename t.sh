@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 # Update progress bar
 update_progress_bar() {
     step=$1
-    total_steps=8
+    total_steps=10
     progress=$(( (step * 100) / total_steps ))
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
@@ -47,11 +47,22 @@ install_packages() {
     update_progress_bar 2
 }
 
+# Create and configure phpMyAdmin user
+setup_phpmyadmin_user() {
+    echo -e "${LIGHT_BLUE}phpMyAdmin felhasználó létrehozása és konfigurálása...${NC}"
+    mysql -u root -p <<EOF
+CREATE USER 'phpmyadmin'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON *.* TO 'phpmyadmin'@'localhost' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+EOF
+    update_progress_bar 3
+}
+
 # Install and configure Node-RED
 setup_node_red() {
     echo -e "${LIGHT_BLUE}Node-RED telepítése...${NC}"
     npm install -g node-red@latest > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
-    update_progress_bar 3
+    update_progress_bar 4
 
     echo -e "${LIGHT_BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
     mkdir -p /home/$(whoami)/.node-red
@@ -89,7 +100,7 @@ EOF
         exit 1
     fi
     echo -e "${GREEN}Node-RED sikeresen elindult a $free_port porton.${NC}"
-    update_progress_bar 4
+    update_progress_bar 5
 
     # Add the port to UFW rules
     /sbin/ufw allow $free_port/tcp > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW szabály hozzáadásakor!${NC}"; exit 1; }
@@ -107,7 +118,7 @@ configure_ufw() {
     /sbin/ufw allow 8080/tcp > /dev/null 2>&1
     /sbin/ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
     echo -e "${GREEN}UFW tűzfal sikeresen konfigurálva.${NC}"
-    update_progress_bar 5
+    update_progress_bar 6
 }
 
 # Configure phpMyAdmin
@@ -120,7 +131,7 @@ configure_phpmyadmin() {
     sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
     systemctl restart apache2 > /dev/null 2>&1 || { echo -e "${RED}Hiba az Apache újraindításakor!${NC}"; exit 1; }
     echo -e "${GREEN}phpMyAdmin elérhető a 8080-as porton.${NC}"
-    update_progress_bar 6
+    update_progress_bar 7
 }
 
 # Final service check
@@ -144,11 +155,13 @@ check_services() {
     else
         echo -e "${RED}Nem minden szolgáltatás fut!${NC}"
     fi
+    update_progress_bar 8
 }
 
 # Main installation process
 prepare_system
 install_packages
+setup_phpmyadmin_user
 setup_node_red
 configure_ufw
 configure_phpmyadmin
