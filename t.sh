@@ -1,171 +1,98 @@
 #!/bin/bash
 
-# ANSI colors for output
-GREEN='\033[0;32m'
+# Színek a kijelzőhöz
 RED='\033[0;31m'
+GREEN='\033[0;32m'
 LIGHT_BLUE='\033[1;34m'
-NC='\033[0m' # No Color
+NC='\033[0m' # Alapértelmezett szín
 
-# Update progress bar
+# Haladás kijelző funkció
 update_progress_bar() {
-    step=$1
-    total_steps=9
-    progress=$(( (step * 100) / total_steps ))
-    bar_width=50
-    filled=$(( (progress * bar_width) / 100 ))
-    empty=$(( bar_width - filled ))
-    echo -ne "${LIGHT_BLUE}[" 
-    for ((i=0; i<filled; i++)); do echo -ne "#"; done
-    for ((i=0; i<empty; i++)); do echo -ne " "; done
-    echo -ne "] ${progress}%${NC}\r"
-    [ "$step" -eq "$total_steps" ] && echo
-}
-
-# Ensure required packages are installed
-prepare_system() {
-    echo -e "${LIGHT_BLUE}Előkészületek...${NC}"
-    apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
-    apt-get install -y sudo net-tools curl > /dev/null 2>&1 || { echo -e "${RED}Hiba a szükséges csomagok telepítésekor!${NC}"; exit 1; }
-    update_progress_bar 1
-}
-
-# Find a free port for Node-RED
-find_free_port() {
-    local port=1880
-    while netstat -tuln | grep -q ":$port"; do
-        ((port++))
+    progress=$1
+    echo -ne "${LIGHT_BLUE}Haladás: ["
+    for ((i=0; i<100; i+=10)); do
+        if [ $i -lt $progress ]; then
+            echo -ne "#"
+        else
+            echo -ne "."
+        fi
     done
-    echo $port
+    echo -e "] $progress%${NC}"
 }
 
-# Install required packages
-install_packages() {
-    echo -e "${LIGHT_BLUE}Szükséges csomagok telepítése...${NC}"
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 || {
-        echo -e "${RED}Hiba a csomagok telepítésekor!${NC}"; exit 1;
-    }
-    update_progress_bar 2
-}
-
-# Install and configure Node-RED
-setup_node_red() {
-    echo -e "${LIGHT_BLUE}Node-RED telepítése...${NC}"
-    npm install -g node-red@latest > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
-    update_progress_bar 3
-
-    echo -e "${LIGHT_BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
-    free_port=$(find_free_port)
-    user=$(whoami)
-    working_dir="/home/$user/.node-red"
-
-    # Ensure correct permissions for WorkingDirectory
-    mkdir -p "$working_dir"
-    chown -R "$user:$user" "$working_dir"
-
-    # Create systemd service file
-    cat <<EOF > /etc/systemd/system/nodered.service
-[Unit]
-Description=Node-RED graphical event wiring tool
-Wants=network.target
-
-[Service]
-Type=simple
-User=$user
-WorkingDirectory=$working_dir
-ExecStart=/usr/bin/env node-red -p $free_port --max-old-space-size=512
-Restart=always
-Environment="NODE_OPTIONS=--max-old-space-size=512"
-Nice=10
-SyslogIdentifier=Node-RED
-KillMode=process
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Reload systemd and start Node-RED
-    systemctl daemon-reload > /dev/null 2>&1
-    systemctl enable nodered.service > /dev/null 2>&1
-    systemctl start nodered.service > /dev/null 2>&1
-    sleep 5
-
-    # Verify Node-RED is running
-    if ! systemctl is-active --quiet nodered.service; then
-        echo -e "${RED}Hiba a Node-RED indításakor! PM2 segítségével indítjuk el...${NC}"
-        install_pm2
-    else
-        echo -e "${GREEN}Node-RED sikeresen elindult a $free_port porton.${NC}"
-    fi
-    update_progress_bar 4
-}
-
-# Install PM2 and configure Node-RED
-install_pm2() {
-    echo -e "${LIGHT_BLUE}PM2 telepítése és konfigurálása Node-RED-hez...${NC}"
-    npm install -g pm2 > /dev/null 2>&1 || { echo -e "${RED}Hiba a PM2 telepítésekor!${NC}"; exit 1; }
-    pm2 start $(which node-red) -- -p 1880
-    pm2 startup > /dev/null 2>&1
-    pm2 save > /dev/null 2>&1
-    echo -e "${GREEN}Node-RED PM2-vel sikeresen elindult.${NC}"
-    update_progress_bar 5
-}
-
-# Configure UFW firewall
+# UFW konfigurálása
 configure_ufw() {
     echo -e "${LIGHT_BLUE}UFW tűzfal konfigurálása...${NC}"
-    ufw default deny incoming > /dev/null 2>&1
-    ufw default allow outgoing > /dev/null 2>&1
-    ufw allow ssh > /dev/null 2>&1
-    ufw allow 80/tcp > /dev/null 2>&1
-    ufw allow 443/tcp > /dev/null 2>&1
-    ufw allow 1880/tcp > /dev/null 2>&1
-    ufw allow 1883/tcp > /dev/null 2>&1
-    ufw allow 8080/tcp > /dev/null 2>&1
-    ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
-    echo -e "${GREEN}UFW tűzfal sikeresen konfigurálva.${NC}"
-    update_progress_bar 6
-}
 
-# Configure phpMyAdmin
-configure_phpmyadmin() {
-    echo -e "${LIGHT_BLUE}phpMyAdmin konfigurálása...${NC}"
-    if [ ! -f /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
-        ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
+    # Próbáljuk meg engedélyezni az alapértelmezett szabályokat
+    if ! ufw default deny incoming > /dev/null 2>&1; then
+        echo -e "${RED}Nem sikerült az alapértelmezett bejövő szabályok beállítása.${NC}"
+        exit 1
     fi
-    sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
-    sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
-    systemctl restart apache2 > /dev/null 2>&1 || { echo -e "${RED}Hiba az Apache újraindításakor!${NC}"; exit 1; }
-    echo -e "${GREEN}phpMyAdmin elérhető a 8080-as porton.${NC}"
-    update_progress_bar 7
-}
 
-# Final service check
-check_services() {
-    echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
-    declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "nodered")
+    if ! ufw default allow outgoing > /dev/null 2>&1; then
+        echo -e "${RED}Nem sikerült az alapértelmezett kimenő szabályok beállítása.${NC}"
+        exit 1
+    fi
 
-    all_services_running=true
-    for service in "${services[@]}"; do
-        echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
-        if systemctl is-active --quiet $service; then
-            echo -e "${GREEN}$service fut.${NC}"
-        else
-            echo -e "${RED}$service nem fut.${NC}"
-            all_services_running=false
+    # Engedélyezzük az alapértelmezett portokat
+    for port in ssh 80 443 1880; do
+        if ! ufw allow $port/tcp > /dev/null 2>&1; then
+            echo -e "${RED}Nem sikerült a(z) $port/tcp port engedélyezése.${NC}"
+            exit 1
         fi
     done
 
-    if $all_services_running; then
-        echo -e "${GREEN}Minden szolgáltatás fut.${NC}"
-    else
-        echo -e "${RED}Nem minden szolgáltatás fut!${NC}"
+    # Végül engedélyezzük a tűzfalat
+    if ! ufw --force enable > /dev/null 2>&1; then
+        echo -e "${RED}Nem sikerült az UFW engedélyezése.${NC}"
+        exit 1
     fi
+
+    echo -e "${GREEN}UFW tűzfal sikeresen konfigurálva.${NC}"
+    update_progress_bar 50
 }
 
-# Main installation process
-prepare_system
-install_packages
-setup_node_red
+# Node-RED indítása
+start_node_red() {
+    echo -e "${LIGHT_BLUE}Node-RED indítása...${NC}"
+
+    # Ellenőrizzük, hogy fut-e már a Node-RED
+    if lsof -Pi :1880 -sTCP:LISTEN -t > /dev/null 2>&1; then
+        echo -e "${RED}A Node-RED már fut a 1880-as porton.${NC}"
+        return 1
+    fi
+
+    # Node-RED indítása
+    node-red start &
+    sleep 5
+
+    # Ellenőrzés
+    if ! lsof -Pi :1880 -sTCP:LISTEN -t > /dev/null 2>&1; then
+        echo -e "${RED}Nem sikerült a Node-RED indítása.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}Node-RED sikeresen elindult a 1880-as porton.${NC}"
+    update_progress_bar 100
+}
+
+# Script kezdete
+echo -e "${LIGHT_BLUE}Előkészületek...${NC}"
+update_progress_bar 0
+
+# Szükséges csomagok telepítése
+echo -e "${LIGHT_BLUE}Szükséges csomagok telepítése...${NC}"
+apt-get update -y && apt-get install -y ufw nodejs npm
+update_progress_bar 20
+
+# Node-RED telepítése
+echo -e "${LIGHT_BLUE}Node-RED telepítése...${NC}"
+npm install -g --unsafe-perm node-red
+update_progress_bar 40
+
+# UFW konfigurálása
 configure_ufw
-configure_phpmyadmin
-check_services
+
+# Node-RED indítása
+start_node_red
