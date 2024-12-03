@@ -25,7 +25,7 @@ update_progress_bar() {
 prepare_system() {
     echo -e "${LIGHT_BLUE}Előkészületek...${NC}"
     apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
-    apt-get install -y sudo net-tools curl > /dev/null 2>&1 || { echo -e "${RED}Hiba a szükséges csomagok telepítésekor!${NC}"; exit 1; }
+    apt-get install -y sudo net-tools curl coreutils > /dev/null 2>&1 || { echo -e "${RED}Hiba a szükséges csomagok telepítésekor!${NC}"; exit 1; }
     update_progress_bar 1
 }
 
@@ -54,6 +54,7 @@ setup_node_red() {
     update_progress_bar 3
 
     echo -e "${LIGHT_BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
+    mkdir -p /home/$(whoami)/.node-red
     free_port=$(find_free_port)
     cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
