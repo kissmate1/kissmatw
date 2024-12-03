@@ -9,12 +9,12 @@ NC='\033[0m' # No Color
 # Update progress bar
 update_progress_bar() {
     step=$1
-    total_steps=8
+    total_steps=9
     progress=$(( (step * 100) / total_steps ))
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
     empty=$(( bar_width - filled ))
-    echo -ne "${LIGHT_BLUE}["
+    echo -ne "${LIGHT_BLUE}[" 
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
@@ -55,6 +55,14 @@ setup_node_red() {
 
     echo -e "${LIGHT_BLUE}Node-RED rendszerindító fájl létrehozása...${NC}"
     free_port=$(find_free_port)
+    user=$(whoami)
+    working_dir="/home/$user/.node-red"
+
+    # Ensure correct permissions for WorkingDirectory
+    mkdir -p "$working_dir"
+    chown -R "$user:$user" "$working_dir"
+
+    # Create systemd service file
     cat <<EOF > /etc/systemd/system/nodered.service
 [Unit]
 Description=Node-RED graphical event wiring tool
@@ -62,8 +70,8 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=$(whoami)
-WorkingDirectory=/home/$(whoami)/.node-red
+User=$user
+WorkingDirectory=$working_dir
 ExecStart=/usr/bin/env node-red -p $free_port --max-old-space-size=512
 Restart=always
 Environment="NODE_OPTIONS=--max-old-space-size=512"
@@ -75,7 +83,7 @@ KillMode=process
 WantedBy=multi-user.target
 EOF
 
-    # Reload and start the service
+    # Reload systemd and start Node-RED
     systemctl daemon-reload > /dev/null 2>&1
     systemctl enable nodered.service > /dev/null 2>&1
     systemctl start nodered.service > /dev/null 2>&1
@@ -83,12 +91,23 @@ EOF
 
     # Verify Node-RED is running
     if ! systemctl is-active --quiet nodered.service; then
-        echo -e "${RED}Hiba a Node-RED indításakor! Ellenőrizze a szolgáltatás beállításait.${NC}"
-        journalctl -u nodered.service
-        exit 1
+        echo -e "${RED}Hiba a Node-RED indításakor! PM2 segítségével indítjuk el...${NC}"
+        install_pm2
+    else
+        echo -e "${GREEN}Node-RED sikeresen elindult a $free_port porton.${NC}"
     fi
-    echo -e "${GREEN}Node-RED sikeresen elindult a $free_port porton.${NC}"
     update_progress_bar 4
+}
+
+# Install PM2 and configure Node-RED
+install_pm2() {
+    echo -e "${LIGHT_BLUE}PM2 telepítése és konfigurálása Node-RED-hez...${NC}"
+    npm install -g pm2 > /dev/null 2>&1 || { echo -e "${RED}Hiba a PM2 telepítésekor!${NC}"; exit 1; }
+    pm2 start $(which node-red) -- -p 1880
+    pm2 startup > /dev/null 2>&1
+    pm2 save > /dev/null 2>&1
+    echo -e "${GREEN}Node-RED PM2-vel sikeresen elindult.${NC}"
+    update_progress_bar 5
 }
 
 # Configure UFW firewall
@@ -104,7 +123,7 @@ configure_ufw() {
     ufw allow 8080/tcp > /dev/null 2>&1
     ufw --force enable > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW konfigurálásakor!${NC}"; exit 1; }
     echo -e "${GREEN}UFW tűzfal sikeresen konfigurálva.${NC}"
-    update_progress_bar 5
+    update_progress_bar 6
 }
 
 # Configure phpMyAdmin
@@ -117,7 +136,7 @@ configure_phpmyadmin() {
     sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
     systemctl restart apache2 > /dev/null 2>&1 || { echo -e "${RED}Hiba az Apache újraindításakor!${NC}"; exit 1; }
     echo -e "${GREEN}phpMyAdmin elérhető a 8080-as porton.${NC}"
-    update_progress_bar 6
+    update_progress_bar 7
 }
 
 # Final service check
