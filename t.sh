@@ -144,4 +144,34 @@ check_services() {
     declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "nodered")
 
     all_services_running=true
-    for service in "${services[@]}
+    for service in "${services[@]}"; do
+        if ! systemctl is-active --quiet $service; then
+            echo -e "${RED}$service nem fut!${NC}"
+            all_services_running=false
+        fi
+    done
+
+    if [ "$all_services_running" = true ]; then
+        echo -e "${GREEN}Minden szolgáltatás sikeresen fut.${NC}"
+    else
+        echo -e "${RED}Egy vagy több szolgáltatás nem fut.${NC}"
+        exit 1
+    fi
+    update_progress_bar 8
+}
+
+main() {
+    echo -e "${LIGHT_BLUE}Telepítési folyamat megkezdése...${NC}"
+    update_progress_bar 0
+    prepare_system
+    install_packages
+    setup_phpmyadmin_user
+    setup_node_red
+    configure_ufw
+    configure_phpmyadmin
+    check_services
+    update_progress_bar 9
+    echo -e "${GREEN}Telepítési folyamat befejezve!${NC}"
+}
+
+main
