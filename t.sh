@@ -8,9 +8,12 @@ echo "Szükséges csomagok telepítése..."
 # Frissítjük a csomaglistát
 sudo apt update -y > /dev/null 2>&1
 
+# curl telepítése (ha nincs telepítve)
+echo "curl telepítése..."
+sudo apt install -y curl > /dev/null 2>&1
+
 # Node.js és npm telepítése (ha szükséges)
 echo "Node.js és npm telepítése..."
-sudo apt install -y curl > /dev/null 2>&1
 curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash - > /dev/null 2>&1
 sudo apt install -y nodejs > /dev/null 2>&1
 
