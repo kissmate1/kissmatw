@@ -51,10 +51,14 @@ install_packages() {
 setup_phpmyadmin_user() {
     echo -e "${LIGHT_BLUE}phpMyAdmin felhasználó létrehozása és konfigurálása...${NC}"
     mysql -u root -p <<EOF
-CREATE USER 'phpmyadmin'@'localhost' IDENTIFIED BY 'your_password';
+CREATE USER IF NOT EXISTS 'phpmyadmin'@'localhost' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON *.* TO 'phpmyadmin'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Hiba a phpMyAdmin felhasználó létrehozásakor!${NC}"
+        exit 1
+    fi
     update_progress_bar 3
 }
 
@@ -140,29 +144,4 @@ check_services() {
     declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "nodered")
 
     all_services_running=true
-    for service in "${services[@]}"; do
-        echo -e "${LIGHT_BLUE}$service ellenőrzése...${NC}"
-        if systemctl is-active --quiet $service; then
-            echo -e "${GREEN}$service fut.${NC}"
-        else
-            echo -e "${RED}$service nem fut.${NC}"
-            all_services_running=false
-        fi
-    done
-
-    if $all_services_running; then
-        echo -e "${GREEN}Minden szolgáltatás fut.${NC}"
-    else
-        echo -e "${RED}Nem minden szolgáltatás fut!${NC}"
-    fi
-    update_progress_bar 8
-}
-
-# Main installation process
-prepare_system
-install_packages
-setup_phpmyadmin_user
-setup_node_red
-configure_ufw
-configure_phpmyadmin
-check_services
+    for service in "${services[@]}
