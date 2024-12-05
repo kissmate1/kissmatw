@@ -14,7 +14,7 @@ update_progress_bar() {
     bar_width=50
     filled=$(( (progress * bar_width) / 100 ))
     empty=$(( bar_width - filled ))
-    echo -ne "${LIGHT_BLUE}["
+    echo -ne "${LIGHT_BLUE}[" 
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
@@ -50,11 +50,14 @@ install_packages() {
 # Create and configure phpMyAdmin user
 setup_phpmyadmin_user() {
     echo -e "${LIGHT_BLUE}phpMyAdmin felhasználó létrehozása és konfigurálása...${NC}"
+    
+    # MySQL parancsok a 'admin' felhasználó létrehozásához
     mysql -u root -p <<EOF
-CREATE USER IF NOT EXISTS 'phpmyadmin'@'localhost' IDENTIFIED BY 'your_password';
-GRANT ALL PRIVILEGES ON *.* TO 'phpmyadmin'@'localhost' WITH GRANT OPTION;
+CREATE USER IF NOT EXISTS 'admin'@'localhost' IDENTIFIED BY 'admin';
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
+
     if [ $? -ne 0 ]; then
         echo -e "${RED}Hiba a phpMyAdmin felhasználó létrehozásakor!${NC}"
         exit 1
@@ -132,46 +135,4 @@ configure_phpmyadmin() {
         ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-enabled/phpmyadmin.conf
     fi
     sed -i 's/Listen 80/Listen 8080/' /etc/apache2/ports.conf
-    sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/' /etc/apache2/sites-available/000-default.conf
-    systemctl restart apache2 > /dev/null 2>&1 || { echo -e "${RED}Hiba az Apache újraindításakor!${NC}"; exit 1; }
-    echo -e "${GREEN}phpMyAdmin elérhető a 8080-as porton.${NC}"
-    update_progress_bar 7
-}
-
-# Final service check
-check_services() {
-    echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
-    declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "nodered")
-
-    all_services_running=true
-    for service in "${services[@]}"; do
-        if ! systemctl is-active --quiet $service; then
-            echo -e "${RED}$service nem fut!${NC}"
-            all_services_running=false
-        fi
-    done
-
-    if [ "$all_services_running" = true ]; then
-        echo -e "${GREEN}Minden szolgáltatás sikeresen fut.${NC}"
-    else
-        echo -e "${RED}Egy vagy több szolgáltatás nem fut.${NC}"
-        exit 1
-    fi
-    update_progress_bar 8
-}
-
-main() {
-    echo -e "${LIGHT_BLUE}Telepítési folyamat megkezdése...${NC}"
-    update_progress_bar 0
-    prepare_system
-    install_packages
-    setup_phpmyadmin_user
-    setup_node_red
-    configure_ufw
-    configure_phpmyadmin
-    check_services
-    update_progress_bar 9
-    echo -e "${GREEN}Telepítési folyamat befejezve!${NC}"
-}
-
-main
+    sed -i 's/<VirtualHost \*:80
