@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# ANSI colors for output
+##############################################
+# 🔧 SZÍNEK ÉS PROGRESS BAR DEFINÍCIÓ
+##############################################
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 LIGHT_BLUE='\033[1;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Update progress bar
 update_progress_bar() {
     step=$1
     total_steps=10
@@ -15,14 +16,15 @@ update_progress_bar() {
     filled=$(( (progress * bar_width) / 100 ))
     empty=$(( bar_width - filled ))
     echo -ne "${LIGHT_BLUE}["
-
     for ((i=0; i<filled; i++)); do echo -ne "#"; done
     for ((i=0; i<empty; i++)); do echo -ne " "; done
     echo -ne "] ${progress}%${NC}\r"
     [ "$step" -eq "$total_steps" ] && echo
 }
 
-# Ensure required packages are installed
+##############################################
+# ⚙️  RENDSZER ELŐKÉSZÍTÉSE
+##############################################
 prepare_system() {
     echo -e "${LIGHT_BLUE}Előkészületek...${NC}"
     apt-get update -y > /dev/null 2>&1 || { echo -e "${RED}Hiba a csomaglista frissítésekor!${NC}"; exit 1; }
@@ -30,7 +32,9 @@ prepare_system() {
     update_progress_bar 1
 }
 
-# Find a free port for Node-RED
+##############################################
+# 🔍 SZABAD PORT KERESÉSE NODE-RED-HEZ
+##############################################
 find_free_port() {
     local port=1880
     while netstat -tuln | grep -q ":$port"; do
@@ -39,7 +43,9 @@ find_free_port() {
     echo $port
 }
 
-# Install required packages
+##############################################
+# 📦 CSOMAGOK TELEPÍTÉSE
+##############################################
 install_packages() {
     echo -e "${LIGHT_BLUE}Szükséges csomagok telepítése...${NC}"
     DEBIAN_FRONTEND=noninteractive apt-get install -y ufw ssh nmap apache2 libapache2-mod-php mariadb-server phpmyadmin curl mosquitto mosquitto-clients nodejs npm mc mdadm > /dev/null 2>&1 || {
@@ -48,7 +54,9 @@ install_packages() {
     update_progress_bar 2
 }
 
-# Create and configure phpMyAdmin user
+##############################################
+# 🛠️ PHPMYADMIN FELHASZNÁLÓ LÉTREHOZÁSA
+##############################################
 setup_phpmyadmin_user() {
     echo -e "${LIGHT_BLUE}phpMyAdmin felhasználó létrehozása és konfigurálása...${NC}"
     mysql -u root -p <<EOF
@@ -63,7 +71,9 @@ EOF
     update_progress_bar 3
 }
 
-# Install and configure Node-RED
+##############################################
+# 🔴 NODE-RED TELEPÍTÉS ÉS KONFIGURÁLÁS
+##############################################
 setup_node_red() {
     echo -e "${LIGHT_BLUE}Node-RED telepítése...${NC}"
     npm install -g node-red@latest > /dev/null 2>&1 || { echo -e "${RED}Hiba a Node-RED telepítésekor!${NC}"; exit 1; }
@@ -92,13 +102,11 @@ KillMode=process
 WantedBy=multi-user.target
 EOF
 
-    # Reload and start the service
     systemctl daemon-reload > /dev/null 2>&1
     systemctl enable nodered.service > /dev/null 2>&1
     systemctl start nodered.service > /dev/null 2>&1
     sleep 5
 
-    # Verify Node-RED is running
     if ! systemctl is-active --quiet nodered.service; then
         echo -e "${RED}Hiba a Node-RED indításakor! Ellenőrizze a szolgáltatás beállításait.${NC}"
         journalctl -u nodered.service
@@ -107,11 +115,12 @@ EOF
     echo -e "${GREEN}Node-RED sikeresen elindult a $free_port porton.${NC}"
     update_progress_bar 5
 
-    # Add the port to UFW rules
     /sbin/ufw allow $free_port/tcp > /dev/null 2>&1 || { echo -e "${RED}Hiba az UFW szabály hozzáadásakor!${NC}"; exit 1; }
 }
 
-# Configure UFW firewall
+##############################################
+# 🔥 UFW TŰZFAL KONFIGURÁLÁSA
+##############################################
 configure_ufw() {
     echo -e "${LIGHT_BLUE}UFW tűzfal konfigurálása...${NC}"
     /sbin/ufw default deny incoming > /dev/null 2>&1
@@ -126,7 +135,9 @@ configure_ufw() {
     update_progress_bar 6
 }
 
-# Configure phpMyAdmin
+##############################################
+# 🌐 PHPMYADMIN KONFIGURÁCIÓ
+##############################################
 configure_phpmyadmin() {
     echo -e "${LIGHT_BLUE}phpMyAdmin konfigurálása...${NC}"
     if [ ! -f /etc/apache2/conf-enabled/phpmyadmin.conf ]; then
@@ -139,7 +150,9 @@ configure_phpmyadmin() {
     update_progress_bar 7
 }
 
-# Final service check
+##############################################
+# ✅ SZOLGÁLTATÁSOK ELLENŐRZÉSE
+##############################################
 check_services() {
     echo -e "\n${LIGHT_BLUE}Szolgáltatások ellenőrzése...${NC}"
     declare -a services=("ssh" "apache2" "mariadb" "mosquitto" "nodered")
@@ -161,6 +174,9 @@ check_services() {
     update_progress_bar 8
 }
 
+##############################################
+# ▶️ FŐ FOLYAMAT
+##############################################
 main() {
     echo -e "${LIGHT_BLUE}Telepítési folyamat megkezdése...${NC}"
     update_progress_bar 0
