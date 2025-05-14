@@ -1,0 +1,3 @@
+apt-get update
+apt-get intall git-all -y
+git clone http://github.com/kissmate1/kissmatw
