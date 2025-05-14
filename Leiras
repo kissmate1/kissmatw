@@ -4,3 +4,4 @@ git clone http://github.com/kissmate1/kissmatw
 cd kissmatw
 chmod 777 t.sh
 chmod 777 autobackup.sh
+./t.sh
