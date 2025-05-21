@@ -6,6 +6,8 @@ cd kissmatw
 chmod 777 t.sh
 chmod 777 autobackup.sh
 ./t.sh
+ha kell linuxbol kep akkor:
+systemctl status - apache2 , 
 
 ------------------------------------------
 LINUX AZURE  
