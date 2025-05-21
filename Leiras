@@ -8,6 +8,9 @@ chmod 777 autobackup.sh
 ./t.sh
 ha kell linuxbol kep akkor:
 systemctl status - apache2 , 
+beirod a portovábbitást virtualboxba utana
+localhost:8080/phpmyadmin username: admin pass: amit megadtal
+putty --> localhost és 8080
 
 ------------------------------------------
 LINUX AZURE  
