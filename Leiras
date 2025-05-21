@@ -1,3 +1,4 @@
+LINUX VIRTUALBOX
 apt-get update
 apt-get intall git-all -y
 git clone http://github.com/kissmate1/kissmatw
@@ -5,3 +6,13 @@ cd kissmatw
 chmod 777 t.sh
 chmod 777 autobackup.sh
 ./t.sh
+
+------------------------------------------
+LINUX AZURE  
+kepek feltoltve
+letoltesek ---> keresobe : powershell
+ssh -i ideamitmegadtalkulcsnak.pem felhasznalonev@
+sudo apt-get install apache2
+cd /var/www/html
+sudo nano --> ide a html alapot a neveddel (https://www.w3schools.com/Html/html_basic.asp)
+amikor keri a nevet beirod hogy index.html es felul irod az alapot
