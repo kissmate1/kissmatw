@@ -21,3 +21,12 @@ sudo apt-get install apache2
 cd /var/www/html
 sudo nano --> ide a html alapot a neveddel (https://www.w3schools.com/Html/html_basic.asp)
 amikor keri a nevet beirod hogy index.html es felul irod az alapot
+
+
+-------------------------------------------
+Windows azure
+add roles
+webserver IIS
+C:\inetpub\wwwroot -- iis startot ezt editelt
+utana ipvel megnyitod 
+
